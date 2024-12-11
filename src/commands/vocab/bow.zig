@@ -23,13 +23,15 @@ pub fn create_vocab(allocator: std.mem.Allocator, file: std.fs.File, sort: bool)
 
     var iterator = bag.iterator();
     if (sort) {
-        var sorted = std.ArrayList([]const u8).init(allocator);
-        defer sorted.deinit();
+        var sorted = try allocator.alloc([]const u8, bag.count());
+        defer allocator.free(sorted);
+        var i: u32 = 0;
         while (iterator.next()) |w| {
-            try sorted.append(w.*);
+            sorted[i] = w.*;
+            i += 1;
         }
-        std.mem.sort([]const u8, sorted.items, {}, lessThan);
-        for (sorted.items) |w| {
+        std.mem.sort([]const u8, sorted, {}, lessThan);
+        for (sorted) |w| {
             try stdout.print("{s}\n", .{w});
         }
     } else {

@@ -15,6 +15,10 @@ pub fn Set(comptime T: type) type {
             map.remove(x);
         }
 
+        pub fn count(_: Self) u32 {
+            return map.count();
+        }
+
         pub fn iterator(_: Self) std.StringHashMap(bool).KeyIterator {
             return map.keyIterator();
         }
