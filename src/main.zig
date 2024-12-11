@@ -38,8 +38,8 @@ fn help() []const u8 {
 fn run_command(allocator: std.mem.Allocator, command: []const u8, args: [][]const u8) !void {
     if (std.mem.eql(u8, command, "vocab")) {
         try @import("commands/vocab/root.zig").main(allocator, args);
-        // } else if (std.mem.eql(u8, command, "model")) {
-        //     try @import("commands/model/root.zig").main(allocator, args);
+    } else if (std.mem.eql(u8, command, "model")) {
+        try @import("commands/model/root.zig").main(allocator, args);
     } else if (std.mem.eql(u8, command, "help")) {
         std.debug.print(comptime help(), .{});
     } else {
