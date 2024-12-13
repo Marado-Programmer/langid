@@ -15,7 +15,10 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>
 const std = @import("std");
 const mat = @import("../../utils/matrix.zig");
-const Neuron = @import("../../utils/neuron.zig").Neuron;
+const neural = @import("../../utils/neural.zig");
+const Neuron = neural.Neuron;
+const Layer = neural.Layer;
+const Network = neural.Network;
 
 const Params = struct { input: ?std.fs.File = null, vocab: ?std.fs.File = null };
 const ParamsSpecificationError = error{ InvalidParamValue, ParamRepetition };
@@ -77,8 +80,14 @@ pub fn main(allocator: std.mem.Allocator, args: [][]const u8) !void {
         try vocab.append(line);
     }
 
-    var neuron = try Neuron().init(allocator, vocab.items.len + 1);
+    var neuron = try Neuron().init_alloc(allocator, vocab.items.len + 1);
     defer neuron.deinit(allocator);
+
+    var layer = try Layer().init(allocator, 4, vocab.items.len + 1);
+    defer layer.deinit(allocator);
+
+    var nn = try Network(3).init(allocator, vocab.items.len + 1, [3]usize{ 4, 10, 3 });
+    defer nn.deinit(allocator);
 
     var prng = std.rand.DefaultPrng.init(blk: {
         var seed: u64 = undefined;
@@ -88,6 +97,9 @@ pub fn main(allocator: std.mem.Allocator, args: [][]const u8) !void {
     const rand = prng.random();
 
     neuron.randomize(rand);
+    neuron.set_f(false);
+
+    layer.randomize(rand);
     neuron.set_f(false);
 
     while (try next(arena_allocator, params.input.?.reader())) |line| {
@@ -103,7 +115,7 @@ pub fn main(allocator: std.mem.Allocator, args: [][]const u8) !void {
             try map.put(word, (map.get(word) orelse 0) + 1);
         }
 
-        var phrase = try mat.Matrix(f32, 2).init(allocator, [2]usize{ 1, vocab.items.len + 1 });
+        var phrase = try mat.Matrix(f32, 2).init_alloc(allocator, [2]usize{ 1, vocab.items.len + 1 });
         defer phrase.deinit(allocator);
 
         try phrase.set([2]usize{ 0, 0 }, 1); // bias
@@ -113,6 +125,10 @@ pub fn main(allocator: std.mem.Allocator, args: [][]const u8) !void {
 
         try neuron.calc_activation(phrase);
         std.log.debug("{d}\t`{s}`", .{ neuron.get_activation(), line });
+        try layer.calc_activation(phrase);
+        std.log.debug("{any}\t`{s}`", .{ layer.activations.buf, line });
+        const y = try nn.feed_forward(phrase);
+        std.log.debug("{any}\t`{s}`", .{ y.buf, line });
     }
 }
 

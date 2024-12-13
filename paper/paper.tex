@@ -5,6 +5,9 @@
 %    with no Invariant Sections, no Front-Cover Texts, and no Back-Cover Texts.
 %    A copy of the license is included in the section entitled "GNU
 %    Free Documentation License".
+%
+%    You should have received a copy of the GNU Free Documentation License
+%    along with this program.  If not, see <https://www.gnu.org/licenses/>
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%% Define Article %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \documentclass[a4paper,12pt]{article}
@@ -270,7 +273,7 @@ sorting=ynt
     $ b = x_{i} $ and $ \phi_{i}(b) = 1 $.
 
     If that's the case the function will look like this
-    \eqref{eq:linear_model_basis_f}
+    \eqref{eq:linear_model_basis_f}.
     \begin{equation}
         \begin{split}
             y(\mathbf{x}, \mathbf{w}) & =
@@ -292,7 +295,7 @@ sorting=ynt
     class.
 
     And this will be what I define as an artificial neuron \eqref{eq:neuron}.
-    You can see a visual representation of it on page~\pageref{fig:neuron}
+    You can see a visual representation of it on page~\pageref{fig:neuron}.
 
     \begin{equation}
         y(\mathbf{x}, \mathbf{w}) = f \left( \mathbf{\phi} \left( \mathbf{x}
@@ -332,7 +335,7 @@ sorting=ynt
     \end{figure}
 
     Because I couldn't find a simple way of doing anonymous functions in my
-    language of choice, \href{run:../src/utils/neuron.zig}{my implementation}
+    language of choice, \href{run:../src/utils/neural.zig}{my implementation}
     does not allow specifying basis functions nor activation functions so every
     basis function can be thought as being the identify function $
     \mathbf{\phi}(x) = x $ and the activation function can be toggled between
@@ -343,7 +346,78 @@ sorting=ynt
         \label{eq:sigmoid}
     \end{equation}
 
-    %\section{Feed-Forward Neural Network}
+    \section{Feed-Forward Neural Network}
+
+    The idea now, as explained in chapter 5.1 of \cite{bishop}, is to train
+    neurons so that their weight values are good.
+
+    Because a neuron is really just a function, a neuron can be a basis
+    function of another neuron, starting a network.
+
+    %%% create visual representation of the above
+
+    A network is composed of layers, each with its own number of neurons.
+
+    %%% visual representation of a layer
+
+    Each of neuron will create a value called \textbf{activation} represented
+    by $ a_{j} $ \eqref{eq:activation} where $ j $ is the neuron number (we can
+    think of a layer as a column matrix of neurons), $ \mathbf{X} $ is the
+    function input or the activations from the layer before after they passed
+    through an activation function and $ D $ is the amount of row in $
+    \mathbf{x} $ $ - 1 $.
+
+    Let's define a way to represent a matrix row:
+    $$
+        A = \begin{bmatrix}a_{0}\\\vdots\\a_{N}\end{bmatrix} \in \mathbb{R}^{N
+            \times M}, a_{i} \in \mathbb{R}^{M}, i \in \left\{ x \in
+            \mathbb{N}: x \le N \right\}
+    $$
+    $$
+        A_{i *} = a_{i}
+    $$
+
+    \begin{equation}
+        \begin{split}
+            a_{j} & = f \left( \displaystyle\sum_{i=1}^{D} \left( w_{ji}x_{i}
+            \right) + (1)b_{j} \right) \\ & = f \left( \mathbf{x} \cdot W_{j *}
+            \right)
+        \end{split}
+        \label{eq:activation}
+    \end{equation}
+
+    The last layer will be the one giving the outputs $ \mathbf{y} $.
+
+    If a neural network has $ n $ layers, the mathematical representation for
+    the output $ k $ will be something like \eqref{eq:neural_network}. $
+    W^{(n)} $ are the weights of that layer. For this to work, because it's
+    just matrix multiplications, we have to be aware of the dimensions of the
+    matrixes. This is called \textbf{forward propagation}.
+
+    \begin{equation}
+        Y_{0} = \textbf{x}
+    \end{equation}
+    \begin{equation}
+        Y_{n} = f_{n} \left( Y_{n - 1}^{T} \cdot w^{(n)} \right), n > 0
+    \end{equation}
+
+    \begin{equation}
+        \begin{split}
+            y_{k}(\mathbf{x}, \mathbf{w}) & = f_{n} \left( \displaystyle\sum_{i_{n}=0} w_{k i_{n}}^{(n)} \cdots f_{2} \left( \displaystyle\sum_{i_{2}=0} w_{i_{3}i_{2}}^{(2)} f_{1} \left( \displaystyle\sum_{i_{1}=0} w_{i_{2}i_{1}}^{(1)}x_{i_{1}} \right) \right) \cdots \right) = \\
+            & = f_{n} \left( \cdots f_{2} \left( f_{1} \left( \mathbf{x} \cdot w^{(1)} \right)^{T} \cdot w^{(2)} \right)^{T} \cdots \cdot w^{(n)} \right) = \\
+            & = Y_{n}
+        \end{split}
+        \label{eq:neural_network}
+    \end{equation}
+
+    %%% full conectivity not mandatory
+
+    %%% visual representation of a neural network
+
+    Layers and neural network representation can be found
+    \href{run:../src/utils/neural.zig}{\texttt{/src/utils/neural.zig}}.
+
+    %%% create x^2 sin(x) |x|
 
     \medskip
 

@@ -55,12 +55,16 @@ pub fn Matrix(comptime T: type, dimensions: comptime_int) type {
             return dimensions;
         }
 
-        pub fn init(allocator: std.mem.Allocator, size: Index(dimensions)) !Self {
+        pub fn init_alloc(allocator: std.mem.Allocator, size: Index(dimensions)) !Self {
             const buf = try allocator.alloc(T, blk: {
                 var mul: usize = 1;
                 for (size) |value| mul *= value;
                 break :blk mul;
             });
+            return Self{ .buf = buf, .sz = size };
+        }
+
+        pub fn init(buf: []T, size: Index(dimensions)) !Self {
             return Self{ .buf = buf, .sz = size };
         }
 
