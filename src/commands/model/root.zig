@@ -102,6 +102,8 @@ pub fn main(allocator: std.mem.Allocator, args: [][]const u8) !void {
     layer.randomize(rand);
     neuron.set_f(false);
 
+    nn.randomize(rand);
+
     while (try next(arena_allocator, params.input.?.reader())) |line| {
         if (line.len == 0) {
             continue;

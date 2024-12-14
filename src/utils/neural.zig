@@ -82,6 +82,7 @@ pub fn Layer() type {
         //basis_functions: mat.Matrix(*const fn (comptime type, T) T, 2),
         //activation_function: fn (T) T,
         activation_function: bool = false,
+        forward: mat.Matrix(T, 2),
         activations: mat.Matrix(T, 2),
         neurons: []Neuron(),
         const Self = @This();
@@ -113,19 +114,34 @@ pub fn Layer() type {
 
         pub fn init(allocator: std.mem.Allocator, n_neurons: usize, input_size: usize) !Self {
             const weights = try mat.Matrix(T, 2).init_alloc(allocator, [2]usize{ input_size, n_neurons });
-            const a = try mat.Matrix(T, 2).init_alloc(allocator, [2]usize{ 1, n_neurons });
+            const forward = try mat.Matrix(T, 2).init_alloc(allocator, [2]usize{ 1, n_neurons });
+            const a = try mat.Matrix(T, 2).init(forward.buf, [2]usize{ 1, n_neurons });
             var i: usize = 0;
             var neurons = try allocator.alloc(Neuron(), n_neurons);
             while (i < n_neurons) : (i += 1) {
                 const start = input_size * i;
                 neurons[i] = try Neuron().init(weights.buf[start .. start + input_size], a.buf[i .. i + 1]);
             }
-            return Self{ .weights = weights, .activations = a, .neurons = neurons };
+            return Self{ .weights = weights, .activations = a, .forward = forward, .neurons = neurons };
+        }
+
+        pub fn init_forward(allocator: std.mem.Allocator, n_neurons: usize, input_size: usize) !Self {
+            const weights = try mat.Matrix(T, 2).init_alloc(allocator, [2]usize{ input_size, n_neurons });
+            const forward = try mat.Matrix(T, 2).init_alloc(allocator, [2]usize{ 1, n_neurons + 1 });
+            const a = try mat.Matrix(T, 2).init(forward.buf[1..], [2]usize{ 1, n_neurons });
+            forward.buf[0] = 1;
+            var i: usize = 0;
+            var neurons = try allocator.alloc(Neuron(), n_neurons);
+            while (i < n_neurons) : (i += 1) {
+                const start = input_size * i;
+                neurons[i] = try Neuron().init(weights.buf[start .. start + input_size], a.buf[i .. i + 1]);
+            }
+            return Self{ .weights = weights, .activations = a, .forward = forward, .neurons = neurons };
         }
 
         pub fn deinit(self: Self, allocator: std.mem.Allocator) void {
             self.weights.deinit(allocator);
-            self.activations.deinit(allocator);
+            self.forward.deinit(allocator);
             allocator.free(self.neurons);
         }
     };
@@ -141,14 +157,14 @@ pub fn Network(n_layers: comptime_int) type {
             var i: usize = 0;
             while (i < self.layers.len) : (i += 1) {
                 try mat.matrix_multiplication(f32, in, self.layers[i].weights, @constCast(&self.layers[i].activations));
-                in = try mat.Matrix(f32, 2).init(self.layers[i].activations.buf, [2]usize{ 1, self.layers[i].activations.buf.len });
+                in = try mat.Matrix(f32, 2).init(self.layers[i].forward.buf, [2]usize{ 1, self.layers[i].forward.buf.len });
             }
             return in;
         }
 
         pub fn randomize(self: *Self, rand: std.Random) void {
             for (self.layers) |layer| {
-                layer.randomize(rand);
+                @constCast(&layer).randomize(rand);
             }
         }
 
@@ -158,11 +174,14 @@ pub fn Network(n_layers: comptime_int) type {
             }
 
             var layers: [n_layers]Layer() = undefined;
-            layers[0] = try Layer().init(allocator, layer_nodes_amount[0], input_size);
+            layers[0] = try Layer().init_forward(allocator, layer_nodes_amount[0], input_size);
             layers[0].set_f(false);
             var i: usize = 1;
             while (i < layer_nodes_amount.len) : (i += 1) {
-                layers[i] = try Layer().init(allocator, layer_nodes_amount[i], layer_nodes_amount[i - 1]);
+                layers[i] = if (i + 1 >= layer_nodes_amount.len)
+                    try Layer().init(allocator, layer_nodes_amount[i], layer_nodes_amount[i - 1] + 1)
+                else
+                    try Layer().init_forward(allocator, layer_nodes_amount[i], layer_nodes_amount[i - 1] + 1);
                 layers[i].set_f(false);
             }
             return Self{ .layers = layers };
