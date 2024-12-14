@@ -104,23 +104,25 @@ pub fn main(allocator: std.mem.Allocator, args: [][]const u8) !void {
 
     nn.randomize(rand);
 
+    var phrase = try mat.Matrix(f32, 2).init_alloc(allocator, [2]usize{ 1, vocab.items.len + 1 });
+    defer phrase.deinit(allocator);
+
+    try phrase.set([2]usize{ 0, 0 }, 1); // bias
+
+    var map = std.StringHashMap(u8).init(allocator);
+    defer map.deinit();
+
     while (try next(arena_allocator, params.input.?.reader())) |line| {
         if (line.len == 0) {
             continue;
         }
-
-        var map = std.StringHashMap(u8).init(allocator);
-        defer map.deinit();
+        map.clearRetainingCapacity();
 
         var iterator = std.mem.splitAny(u8, line, " .,:;\"'\\/|_-{[()]}\n\r\t");
         while (iterator.next()) |word| {
             try map.put(word, (map.get(word) orelse 0) + 1);
         }
 
-        var phrase = try mat.Matrix(f32, 2).init_alloc(allocator, [2]usize{ 1, vocab.items.len + 1 });
-        defer phrase.deinit(allocator);
-
-        try phrase.set([2]usize{ 0, 0 }, 1); // bias
         for (vocab.items, 1..) |w, i| {
             try phrase.set([2]usize{ 0, i }, @as(f32, @floatFromInt(map.get(w) orelse 0)));
         }
