@@ -25,7 +25,8 @@ const ParamsSpecificationError = error{ InvalidParamValue, ParamRepetition };
 
 pub fn main(allocator: std.mem.Allocator, args: [][]const u8) !void {
     var params = Params{};
-    defer if (params.input) |in| in.close();
+    defer if (params.input) |file| file.close();
+    defer if (params.vocab) |file| file.close();
 
     var skip = false;
     for (args, 0..) |arg, i| {
@@ -86,7 +87,7 @@ pub fn main(allocator: std.mem.Allocator, args: [][]const u8) !void {
     var layer = try Layer().init(allocator, 4, vocab.items.len + 1);
     defer layer.deinit(allocator);
 
-    var nn = try Network(3).init(allocator, vocab.items.len + 1, [3]usize{ 4, 10, 3 });
+    var nn = try Network().init(allocator, vocab.items.len + 1, @constCast(&[3]usize{ 4, 10, 3 }));
     defer nn.deinit(allocator);
 
     var prng = std.rand.DefaultPrng.init(blk: {
@@ -97,10 +98,10 @@ pub fn main(allocator: std.mem.Allocator, args: [][]const u8) !void {
     const rand = prng.random();
 
     neuron.randomize(rand);
-    neuron.set_f(false);
+    neuron.set_f(.none);
 
     layer.randomize(rand);
-    neuron.set_f(false);
+    neuron.set_f(.none);
 
     nn.randomize(rand);
 
@@ -131,7 +132,7 @@ pub fn main(allocator: std.mem.Allocator, args: [][]const u8) !void {
         std.log.debug("{d}\t`{s}`", .{ neuron.get_activation(), line });
         try layer.calc_activation(phrase);
         std.log.debug("{any}\t`{s}`", .{ layer.activations.buf, line });
-        const y = try nn.feed_forward(phrase);
+        const y = try nn.feed_forward(phrase, 0);
         std.log.debug("{any}\t`{s}`", .{ y.buf, line });
     }
 }

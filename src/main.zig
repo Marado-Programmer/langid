@@ -40,6 +40,8 @@ fn run_command(allocator: std.mem.Allocator, command: []const u8, args: [][]cons
         try @import("commands/vocab/root.zig").main(allocator, args);
     } else if (std.mem.eql(u8, command, "model")) {
         try @import("commands/model/root.zig").main(allocator, args);
+    } else if (std.mem.eql(u8, command, "eg")) {
+        try @import("commands/eg/root.zig").main(allocator, args);
     } else if (std.mem.eql(u8, command, "help")) {
         std.debug.print(comptime help(), .{});
     } else {

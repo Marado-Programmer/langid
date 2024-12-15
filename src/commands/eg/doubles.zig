@@ -13,17 +13,16 @@
 //
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>
-const exp = @import("std").math.exp;
-pub fn sigmoid(x: f32) f32 {
-    return 1 / (1 + exp(-x));
-}
-pub fn sigmoidp(x: f32) f32 {
-    return sigmoid(x) * (1 - sigmoid(x));
+const std = @import("std");
+pub fn generate_data(data: *[][]f32, rand: std.Random) void {
+    for (data.*, 0..) |_, n| {
+        const x = random(rand);
+
+        data.*[n][0] = x;
+        data.*[n][1] = 2 * x;
+    }
 }
 
-pub fn identity(x: f32) f32 {
-    return x;
-}
-pub fn identityp(_: f32) f32 {
-    return 1;
+fn random(rand: std.Random) f32 {
+    return @as(f32, @floatFromInt(rand.intRangeAtMost(i8, -10, 10)));
 }

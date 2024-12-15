@@ -102,3 +102,36 @@ pub fn matrix_multiplication(comptime T: type, x: Matrix(T, 2), y: Matrix(T, 2),
         }
     }
 }
+
+test "Matrix multiplication" {
+    const allocator = std.testing.allocator;
+
+    const valuesA = [_]f32{
+        1.0, 2.0, 3.0,
+        4.0, 5.0, 6.0,
+    };
+    const sizeA: Index(2) = [2]usize{ 3, 2 };
+    const matA = try Matrix(f32, 2).init(@constCast(&valuesA), sizeA);
+
+    const valuesB = [_]f32{
+        7.0, 8.0,
+        9.0, 10.0,
+    };
+    const sizeB: Index(2) = [2]usize{ 2, 2 };
+    const matB = try Matrix(f32, 2).init(@constCast(&valuesB), sizeB);
+
+    const sizeRes: Index(2) = [2]usize{ 3, 2 };
+    var result = try Matrix(f32, 2).init_alloc(allocator, sizeRes);
+    defer result.deinit(allocator);
+
+    try matrix_multiplication(f32, matA, matB, &result);
+
+    const expected = [_]f32{
+        1 * 7 + 4 * 8,  2 * 7 + 5 * 8,  3 * 7 + 6 * 8,
+        1 * 9 + 4 * 10, 2 * 9 + 5 * 10, 3 * 9 + 6 * 10,
+    };
+
+    for (expected, 0..) |val, i| {
+        try std.testing.expect(std.math.approxEqAbs(f32, val, result.buf[i], 1e-4));
+    }
+}
