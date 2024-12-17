@@ -16,6 +16,7 @@
 const std = @import("std");
 
 pub fn main() !void {
+    @setFloatMode(std.builtin.FloatMode.optimized);
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
     defer {

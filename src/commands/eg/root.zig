@@ -78,7 +78,7 @@ pub fn main(allocator: std.mem.Allocator, args: [][]const u8) !void {
     var nn = try NeuralNetwork().init(allocator, training_data[0].len - 1, layers_neurons);
     defer nn.deinit(allocator);
     nn.randomize(rand);
-    nn.learning_rate = 1e-6;
+    nn.learning_rate = 1e-4;
 
     for (training_data, 0..) |value, a| {
         const in = try mat.Matrix(f32, 2).init(value, [_]usize{ 1, value.len - 1 });
@@ -86,9 +86,15 @@ pub fn main(allocator: std.mem.Allocator, args: [][]const u8) !void {
         const out = try nn.feed_forward(in, value[value.len - 1]);
 
         if (a < 5) {
-            //std.log.debug("ax^2 + bx + c = y <=> {d}({d})^2 + {d}({d}) + {d} = {d} ({d})", .{ value[0], value[3], value[1], value[3], value[2], out.buf[0], value[4] });
-            std.log.debug("ax + b = y <=> {d}({d}) + {d} = {d} ({d})", .{ value[0], value[2], value[1], out.buf[0], value[3] });
-            //std.log.debug("2x = y <=> 2({d}) = {d} ({d})", .{ value[0], out.buf[0], value[1] });
+            if (std.mem.eql(u8, example, "parabola")) {
+                std.log.debug("ax^2 + bx + c = y <=> {d}({d})^2 + {d}({d}) + {d} = {d} ({d})", .{ value[0], value[3], value[1], value[3], value[2], out.buf[0], value[4] });
+            } else if (std.mem.eql(u8, example, "linear")) {
+                std.log.debug("ax + b = y <=> {d}({d}) + {d} = {d} ({d})", .{ value[0], value[2], value[1], out.buf[0], value[3] });
+            } else if (std.mem.eql(u8, example, "doubles")) {
+                std.log.debug("2x = y <=> 2({d}) = {d} ({d})", .{ value[0], out.buf[0], value[1] });
+            } else {
+                @panic("");
+            }
         }
     }
 
@@ -100,12 +106,15 @@ pub fn main(allocator: std.mem.Allocator, args: [][]const u8) !void {
         for (training_data) |value| {
             const in = try mat.Matrix(f32, 2).init(value, [_]usize{ 1, value.len - 1 });
 
+            //const out = try nn.feed_forward(in, value[value.len - 1]);
             _ = try nn.feed_forward(in, value[value.len - 1]);
+
+            // std.log.debug("ax + b = y <=> {d}({d}) + {d} = {d} ({d})", .{ value[0], value[2], value[1], out.buf[0], value[3] });
         }
 
-        if (e == nn.err()) {
-            break;
-        }
+        //if (e == nn.err()) {
+        //    break;
+        //}
 
         e = nn.err();
         nn.use_training();
@@ -119,9 +128,15 @@ pub fn main(allocator: std.mem.Allocator, args: [][]const u8) !void {
         const out = try nn.feed_forward(in, value[value.len - 1]);
 
         if (a < 5) {
-            //std.log.debug("ax^2 + bx + c = y <=> {d}({d})^2 + {d}({d}) + {d} = {d} ({d})", .{ value[0], value[3], value[1], value[3], value[2], out.buf[0], value[4] });
-            std.log.debug("ax + b = y <=> {d}({d}) + {d} = {d} ({d})", .{ value[0], value[2], value[1], out.buf[0], value[3] });
-            //std.log.debug("2x = y <=> 2({d}) = {d} ({d})", .{ value[0], out.buf[0], value[1] });
+            if (std.mem.eql(u8, example, "parabola")) {
+                std.log.debug("ax^2 + bx + c = y <=> {d}({d})^2 + {d}({d}) + {d} = {d} ({d})", .{ value[0], value[3], value[1], value[3], value[2], out.buf[0], value[4] });
+            } else if (std.mem.eql(u8, example, "linear")) {
+                std.log.debug("ax + b = y <=> {d}({d}) + {d} = {d} ({d})", .{ value[0], value[2], value[1], out.buf[0], value[3] });
+            } else if (std.mem.eql(u8, example, "doubles")) {
+                std.log.debug("2x = y <=> 2({d}) = {d} ({d})", .{ value[0], out.buf[0], value[1] });
+            } else {
+                @panic("");
+            }
         }
     }
 }

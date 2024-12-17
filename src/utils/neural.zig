@@ -20,16 +20,25 @@ const math = @import("./math.zig");
 pub const Activation = enum {
     none,
     sigmoid,
-    pub fn function(self: Activation) *const fn (f32) f32 {
-        return &switch (self) {
-            .none => math.identity,
-            .sigmoid => math.sigmoid,
+    reLU,
+    rosenblatt,
+    tanh,
+    pub fn function(self: Activation, x: f32) f32 {
+        return switch (self) {
+            .none => math.identity(x),
+            .sigmoid => math.sigmoid(x),
+            .reLU => math.reLU(x),
+            .rosenblatt => math.rosenblatt(x),
+            .tanh => math.tanh(x),
         };
     }
-    pub fn derivative(self: Activation) *const fn (f32) f32 {
-        return &switch (self) {
-            .none => math.identityp,
-            .sigmoid => math.sigmoidp,
+    pub fn derivative(self: Activation, x: f32) f32 {
+        return switch (self) {
+            .none => math.identityp(x),
+            .sigmoid => math.sigmoidp(x),
+            .reLU => math.reLUp(x),
+            .rosenblatt => math.rosenblattp(x),
+            .tanh => math.tanhp(x),
         };
     }
 };
@@ -39,22 +48,22 @@ pub fn Neuron() type {
     return struct {
         const T = f32;
         weights: mat.Matrix(T, 2),
-        //basis_functions: mat.Matrix(*const fn (f32) f32, 2),
+        // basis_functions: mat.Matrix(Activation, 2),
         activation_function: Activation = .none,
-        a: mat.Matrix(T, 2),
+        y: mat.Matrix(T, 2),
         const Self = @This();
 
         pub fn get_activation(self: Self) T {
-            const x = try self.a.get([2]usize{ 0, 0 });
-            return self.activation_function.function()(x);
+            return self.activation_function.function(self.get_y());
         }
 
-        pub fn calc_activation(self: *Self, x: mat.Matrix(T, 2)) !void {
-            try mat.matrix_multiplication(T, x, self.weights, &self.a);
+        pub fn calculate_activation(self: *Self, x: mat.Matrix(T, 2)) T {
+            try mat.matrix_multiplication(T, x, self.weights, &self.y);
+            return self.get_activation();
         }
 
-        pub fn set_f(self: *Self, activation: Activation) void {
-            self.activation_function = activation;
+        pub fn get_y(self: Self) T {
+            return self.y.buf[0];
         }
 
         pub fn randomize(self: *Self, rand: std.Random) void {
@@ -64,23 +73,34 @@ pub fn Neuron() type {
         }
 
         fn random(rand: std.Random) T {
-            //return @as(T, @floatFromInt(rand.intRangeAtMost(i8, -20, 20)));
-            return rand.floatNorm(f32);
+            return rand.floatNorm(T);
+        }
+
+        pub fn fill(self: *Self, x: T) void {
+            for (self.weights.buf, 0..) |_, i| {
+                self.weights.buf[i] = x;
+            }
+        }
+
+        pub fn reset(self: *Self) void {
+            self.fill(0);
         }
 
         pub fn init_alloc(allocator: std.mem.Allocator, input_size: usize) !Self {
             const weights = try mat.Matrix(T, 2).init_alloc(allocator, [2]usize{ input_size, 1 });
-            const a = try mat.Matrix(T, 2).init_alloc(allocator, [2]usize{ 1, 1 });
-            return Self{ .weights = weights, .a = a };
+            const y = try mat.Matrix(T, 2).init_alloc(allocator, [2]usize{ 1, 1 });
+            return Self{ .weights = weights, .y = y };
         }
 
-        pub fn init(weights: []T, a: []T) !Self {
-            return Self{ .weights = try mat.Matrix(T, 2).init(weights, [2]usize{ weights.len, 1 }), .a = try mat.Matrix(T, 2).init(a, [2]usize{ 1, 1 }) };
+        pub fn init(weights: []T, y: []T) !Self {
+            const weights_matrix = try mat.Matrix(T, 2).init(weights, [2]usize{ weights.len, 1 });
+            const y_matrix = try mat.Matrix(T, 2).init(y, [2]usize{ 1, 1 });
+            return Self{ .weights = weights_matrix, .y = y_matrix };
         }
 
         pub fn deinit(self: Self, allocator: std.mem.Allocator) void {
             self.weights.deinit(allocator);
-            self.a.deinit(allocator);
+            self.y.deinit(allocator);
         }
     };
 }
@@ -100,78 +120,70 @@ test "neuron" {
     x.buf[1] = 2;
     x.buf[2] = 1;
 
-    try neuron.calc_activation(x);
-
-    try std.testing.expect(neuron.get_activation() == 3 * 1 + 2 * 2 + 1 * 4);
+    try std.testing.expect(neuron.calculate_activation(x) == 3 * 1 + 2 * 2 + 1 * 4);
 }
 
 pub fn Layer() type {
     return struct {
         const T = f32;
         weights: mat.Matrix(T, 2),
-        //basis_functions: mat.Matrix(*const fn (comptime type, T) T, 2),
-        //activation_function: fn (T) T,
-        activation_function: Activation = .none,
         forward: mat.Matrix(T, 2),
         activations: mat.Matrix(T, 2),
         neurons: []Neuron(),
         const Self = @This();
 
-        pub fn calc_activation(self: *Self, x: mat.Matrix(T, 2)) !void {
+        pub fn calculate_activations(self: *Self, x: mat.Matrix(T, 2)) !*const mat.Matrix(T, 2) {
             try mat.matrix_multiplication(T, x, self.weights, &self.activations);
+            return &self.activations;
         }
 
-        pub fn set_f(self: *Self, activation: Activation) void {
-            self.activation_function = activation;
+        pub fn set_activation_functions(self: *Self, f: Activation) void {
+            for (self.neurons, 0..) |_, i| {
+                self.neurons[i].activation_function = f;
+            }
         }
 
         pub fn randomize(self: *Self, rand: std.Random) void {
-            const sz = self.weights.sz;
-            var i: usize = 0;
-            while (i < sz[0]) : (i += 1) {
-                var j: usize = 0;
-                while (j < sz[1]) : (j += 1) {
-                    const pos = [2]usize{ i, j };
-                    const r = random(rand);
-                    try self.weights.set(pos, r);
-                }
+            for (self.neurons, 0..) |_, i| {
+                self.neurons[i].randomize(rand);
             }
         }
 
-        fn random(rand: std.Random) T {
-            //return @as(T, @floatFromInt(rand.intRangeAtMost(i8, -20, 20)));
-            return rand.floatNorm(f32);
+        pub fn fill(self: *Self, x: T) void {
+            for (self.neurons, 0..) |_, i| {
+                self.neurons[i].fill(x);
+            }
         }
 
         pub fn reset(self: *Self) void {
-            for (self.weights.buf, 0..) |_, i| {
-                self.weights.buf[i] = 0;
-            }
+            self.fill(0);
         }
 
         pub fn init(allocator: std.mem.Allocator, n_neurons: usize, input_size: usize) !Self {
             const weights = try mat.Matrix(T, 2).init_alloc(allocator, [2]usize{ input_size, n_neurons });
             const forward = try mat.Matrix(T, 2).init_alloc(allocator, [2]usize{ 1, n_neurons });
             const a = try mat.Matrix(T, 2).init(forward.buf, [2]usize{ 1, n_neurons });
-            var i: usize = 0;
             var neurons = try allocator.alloc(Neuron(), n_neurons);
+            var i: usize = 0;
             while (i < n_neurons) : (i += 1) {
                 const start = input_size * i;
-                neurons[i] = try Neuron().init(weights.buf[start .. start + input_size], a.buf[i .. i + 1]);
+                const end = start + input_size;
+                neurons[i] = try Neuron().init(weights.buf[start..end], a.buf[i .. i + 1]);
             }
             return Self{ .weights = weights, .activations = a, .forward = forward, .neurons = neurons };
         }
 
-        pub fn init_forward(allocator: std.mem.Allocator, n_neurons: usize, input_size: usize) !Self {
+        pub fn init_with_bias(allocator: std.mem.Allocator, n_neurons: usize, input_size: usize) !Self {
             const weights = try mat.Matrix(T, 2).init_alloc(allocator, [2]usize{ input_size, n_neurons });
             const forward = try mat.Matrix(T, 2).init_alloc(allocator, [2]usize{ 1, n_neurons + 1 });
             const a = try mat.Matrix(T, 2).init(forward.buf[1..], [2]usize{ 1, n_neurons });
             forward.buf[0] = 1;
-            var i: usize = 0;
             var neurons = try allocator.alloc(Neuron(), n_neurons);
+            var i: usize = 0;
             while (i < n_neurons) : (i += 1) {
                 const start = input_size * i;
-                neurons[i] = try Neuron().init(weights.buf[start .. start + input_size], a.buf[i .. i + 1]);
+                const end = start + input_size;
+                neurons[i] = try Neuron().init(weights.buf[start..end], a.buf[i .. i + 1]);
             }
             return Self{ .weights = weights, .activations = a, .forward = forward, .neurons = neurons };
         }
@@ -202,80 +214,142 @@ test "layer" {
     x.buf[1] = 2;
     x.buf[2] = 1;
 
-    try layer.calc_activation(x);
+    const a = try layer.calculate_activations(x);
 
-    try std.testing.expect(layer.activations.buf[0] == 3 * 1 + 2 * 2 + 1 * 4);
-    try std.testing.expect(layer.activations.buf[1] == 3 * 1 + 2 * 3 + 1 * 9);
+    try std.testing.expect(a.buf[0] == 3 * 1 + 2 * 2 + 1 * 4);
+    try std.testing.expect(a.buf[1] == 3 * 1 + 2 * 3 + 1 * 9);
 }
+
+pub const LearningMethod = enum {
+    basic,
+    backpropagate,
+};
 
 pub fn Network() type {
     return struct {
+        const T = f32;
         layers: []Layer(),
         gradient: []Layer(),
-        count: f32 = 0,
-        diff_acc: f32 = 0,
-        y: mat.Matrix(f32, 2),
-        learning_rate: f32 = 1,
-        eps: f32 = 1e-7,
+        y: mat.Matrix(T, 2),
+        learning_rate: T = 1,
+        learning_rate_decay: T = 0.99,
+        learning_method: LearningMethod = .backpropagate,
+        batch: bool = true,
+        eps: T = 1e-7,
+        count: usize = 0,
+        error_accumulator: T = 0,
         const Self = @This();
 
-        pub fn feed_forward(self: *Self, x: mat.Matrix(f32, 2), expected: f32) !mat.Matrix(f32, 2) {
+        fn learn(self: *Self, x: mat.Matrix(T, 2)) !void {
             var in = x;
             for (self.layers, 0..) |_, i| {
-                try mat.matrix_multiplication(f32, in, self.layers[i].weights, @constCast(&self.layers[i].activations));
-                in = try mat.Matrix(f32, 2).init(self.layers[i].forward.buf, [2]usize{ 1, self.layers[i].forward.buf.len });
+                _ = try self.layers[i].calculate_activations(in);
+                in = self.layers[i].forward;
             }
             @memcpy(self.y.buf, in.buf);
-            const cost = std.math.pow(f32, self.y.buf[0] - expected, 2);
-            for (self.layers, 0..) |layer, i| {
-                for (layer.weights.buf, 0..) |w, j| {
-                    const old = w;
-                    self.layers[i].weights.buf[j] = w + self.eps;
-                    in = x;
-                    for (self.layers, 0..) |_, k| {
-                        try mat.matrix_multiplication(f32, in, self.layers[k].weights, @constCast(&self.layers[k].activations));
-                        in = try mat.Matrix(f32, 2).init(self.layers[k].forward.buf, [2]usize{ 1, self.layers[k].forward.buf.len });
-                    }
-                    in = self.layers[self.layers.len - 1].activations;
-                    self.layers[i].weights.buf[j] = old;
+        }
 
-                    const cost_ = std.math.pow(f32, in.buf[0] - expected, 2);
-                    self.gradient[i].weights.buf[j] += cost_;
-                }
-            }
-            self.diff_acc += cost;
+        pub fn feed_forward(self: *Self, x: mat.Matrix(T, 2), expected: T) !*const mat.Matrix(T, 2) {
+            try self.learn(x);
+
+            const e = std.math.pow(T, self.y.buf[0] - expected, 2);
+            self.error_accumulator += e;
             self.count += 1;
-            return self.y;
+
+            switch (self.learning_method) {
+                .basic => {
+                    for (self.layers, 0..) |layer, i| {
+                        for (layer.weights.buf, 0..) |w, j| {
+                            self.layers[i].weights.buf[j] = w + self.eps;
+                            try self.learn(x);
+                            self.layers[i].weights.buf[j] = w;
+
+                            const y = self.layers[self.layers.len - 1].activations;
+                            self.gradient[i].weights.buf[j] += std.math.pow(T, y.buf[0] - expected, 2);
+                        }
+                    }
+                },
+                .backpropagate => {
+                    var last = self.gradient.len - 1;
+                    for (self.layers[last].neurons, 0..) |neuron, i| {
+                        const delta = (neuron.y.buf[0] - expected);
+                        self.gradient[last].activations.buf[i] = delta;
+
+                        const previous_layer = if (last <= 0) x else self.layers[last - 1].forward;
+                        for (neuron.weights.buf, 0..) |_, j| {
+                            try self.gradient[last].weights.set([2]usize{ j, 0 }, previous_layer.buf[j] * delta);
+                        }
+                    }
+                    if (last > 0) {
+                        last -= 1;
+                        while (last >= 0) : (last -= 1) {
+                            for (self.layers[last].neurons, 0..) |neuron, i| {
+                                const a = neuron.activation_function.derivative(neuron.y.buf[0]);
+                                const sum = blk: {
+                                    var add: T = 0;
+                                    for (self.layers[last + 1].neurons, 0..) |prev_neuron, j| {
+                                        const delta = self.gradient[last + 1].activations.buf[j];
+                                        add += prev_neuron.weights.buf[i] * delta;
+                                    }
+                                    break :blk add;
+                                };
+                                const delta = a * sum;
+                                self.gradient[last].activations.buf[i] = delta;
+
+                                const previous_layer = if (last <= 0) x else self.layers[last - 1].forward;
+                                for (neuron.weights.buf, 0..) |_, j| {
+                                    try self.gradient[last].weights.set([2]usize{ j, 0 }, previous_layer.buf[j] * delta);
+                                }
+                            }
+
+                            if (last <= 0) {
+                                break;
+                            }
+                        }
+                    }
+                },
+            }
+
+            if (!self.batch) {
+                self.use_training();
+            }
+
+            return &self.y;
         }
 
         pub fn use_training(self: *Self) void {
-            const cost = self.diff_acc / 2;
-            std.log.debug("cost:\t{d}", .{cost});
+            const count: f32 = @as(f32, @floatFromInt(self.count));
             for (self.gradient, 0..) |layer, i| {
                 for (layer.weights.buf, 0..) |w, j| {
-                    const lim = ((w / 2) - cost) / self.eps;
-                    self.layers[i].weights.buf[j] -= self.learning_rate * lim;
+                    self.layers[i].weights.buf[j] += switch (self.learning_method) {
+                        .basic => blk: {
+                            const lim = ((w / count) - self.err()) / self.eps;
+                            break :blk -self.learning_rate * lim;
+                        },
+                        .backpropagate => -self.learning_rate * (w / count),
+                    };
                 }
-
                 self.gradient[i].reset();
             }
-            self.diff_acc = 0;
+            self.learning_rate *= self.learning_rate_decay;
+            self.error_accumulator = 0;
             self.count = 0;
         }
 
-        pub fn err(self: *Self) f32 {
-            return self.diff_acc / 2;
+        pub fn err(self: *Self) T {
+            const count: f32 = @as(f32, @floatFromInt(self.count));
+            return self.error_accumulator / count;
         }
 
         pub fn randomize(self: *Self, rand: std.Random) void {
-            for (self.layers) |layer| {
-                @constCast(&layer).randomize(rand);
+            for (self.layers, 0..) |_, i| {
+                self.layers[i].randomize(rand);
             }
         }
 
         pub fn reset_gradient(self: *Self) void {
             for (self.gradient, 0..) |_, i| {
-                self.layers[i].reset();
+                self.gradient[i].reset();
             }
         }
 
@@ -285,41 +359,23 @@ pub fn Network() type {
             }
 
             var layers = try allocator.alloc(Layer(), layer_nodes_amount.len);
-            layers[0] = if (1 >= layer_nodes_amount.len)
-                try Layer().init(allocator, layer_nodes_amount[0], input_size)
-            else
-                try Layer().init_forward(allocator, layer_nodes_amount[0], input_size);
-            layers[0].set_f(Activation.sigmoid);
-            var i: usize = 1;
+            var gradient = try allocator.alloc(Layer(), layer_nodes_amount.len);
+            var i: usize = 0;
             while (i < layer_nodes_amount.len) : (i += 1) {
+                const in_size = if (i == 0) input_size else layer_nodes_amount[i - 1] + 1;
                 layers[i] = if (i + 1 >= layer_nodes_amount.len)
-                    try Layer().init(allocator, layer_nodes_amount[i], layer_nodes_amount[i - 1] + 1)
+                    try Layer().init(allocator, layer_nodes_amount[i], in_size)
                 else
-                    try Layer().init_forward(allocator, layer_nodes_amount[i], layer_nodes_amount[i - 1] + 1);
-
-                if (i + 1 < layer_nodes_amount.len) {
-                    layers[i].set_f(Activation.sigmoid);
-                }
+                    try Layer().init_with_bias(allocator, layer_nodes_amount[i], in_size);
+                gradient[i] = if (i + 1 >= layer_nodes_amount.len)
+                    try Layer().init(allocator, layer_nodes_amount[i], in_size)
+                else
+                    try Layer().init_with_bias(allocator, layer_nodes_amount[i], in_size);
             }
 
-            var gradients = try allocator.alloc(Layer(), layer_nodes_amount.len);
-            gradients[0] = if (1 >= layer_nodes_amount.len)
-                try Layer().init(allocator, layer_nodes_amount[0], input_size)
-            else
-                try Layer().init_forward(allocator, layer_nodes_amount[0], input_size);
-            gradients[0].reset();
-            i = 1;
-            while (i < layer_nodes_amount.len) : (i += 1) {
-                gradients[i] = if (i + 1 >= layer_nodes_amount.len)
-                    try Layer().init(allocator, layer_nodes_amount[i], layer_nodes_amount[i - 1] + 1)
-                else
-                    try Layer().init_forward(allocator, layer_nodes_amount[i], layer_nodes_amount[i - 1] + 1);
-                gradients[i].reset();
-            }
+            const y = try mat.Matrix(T, 2).init_alloc(allocator, [2]usize{ layer_nodes_amount[layer_nodes_amount.len - 1], 1 });
 
-            const y = try mat.Matrix(f32, 2).init_alloc(allocator, [2]usize{ layer_nodes_amount[layer_nodes_amount.len - 1], 1 });
-
-            return Self{ .layers = layers, .gradient = gradients, .y = y };
+            return Self{ .layers = layers, .gradient = gradient, .y = y };
         }
 
         pub fn deinit(self: Self, allocator: std.mem.Allocator) void {
@@ -349,15 +405,120 @@ test "neural network" {
     nn.layers[0].weights.buf[0] = 0;
 
     var i: usize = 0;
-    _ = try nn.feed_forward(x, 10);
-    var cost = nn.diff_acc / nn.count;
+    var y = try nn.feed_forward(x, 10);
     nn.use_training();
     while (i < 1e2) : (i += 1) {
-        std.log.warn("c: {d}\tw: {d}", .{ cost, nn.layers[0].weights.buf[0] });
-        _ = try nn.feed_forward(x, 10);
-        const new_cost = nn.diff_acc / nn.count;
+        std.log.warn("y: {d}\tw: {d}", .{ y.buf[0], nn.layers[0].weights.buf[0] });
+        y = try nn.feed_forward(x, 10);
+        //const new_cost = nn.diff_acc / nn.count;
         //try std.testing.expect(cost >= new_cost);
-        cost = new_cost;
+        //cost = new_cost;
+        nn.use_training();
+    }
+}
+
+test "neural network 2 1 neuron layers" {
+    var nn = try Network().init(std.testing.allocator, 1, @constCast(&[_]usize{ 1, 1 }));
+    defer nn.deinit(std.testing.allocator);
+    nn.learning_rate = 1e-2;
+
+    // 2x = y
+    const x = try mat.Matrix(f32, 2).init_alloc(std.testing.allocator, [2]usize{ 1, 1 });
+    defer x.deinit(std.testing.allocator);
+    x.buf[0] = 5;
+
+    nn.layers[0].weights.buf[0] = 0;
+    nn.layers[1].weights.buf[0] = 0;
+
+    var i: usize = 0;
+    var y = try nn.feed_forward(x, 10);
+    nn.use_training();
+    while (i < 1e2) : (i += 1) {
+        std.log.warn("y: {d}\tw1: {d} w2: {}", .{ y.buf[0], nn.layers[0].weights.buf[0], nn.layers[1].weights.buf[0] });
+        y = try nn.feed_forward(x, 10);
+        nn.use_training();
+    }
+}
+
+test "neural network 2 neuron layer" {
+    var nn = try Network().init(std.testing.allocator, 1, @constCast(&[_]usize{ 2, 1 }));
+    defer nn.deinit(std.testing.allocator);
+    nn.learning_rate = 1e-1;
+
+    // 2x + 1 = y
+    const x = try mat.Matrix(f32, 2).init_alloc(std.testing.allocator, [2]usize{ 1, 1 });
+    defer x.deinit(std.testing.allocator);
+    x.buf[0] = 5;
+
+    nn.layers[0].weights.buf[0] = 0;
+    nn.layers[0].weights.buf[1] = 0;
+    nn.layers[1].weights.buf[0] = 0;
+
+    var i: usize = 0;
+    var y = try nn.feed_forward(x, 11);
+    nn.use_training();
+    while (i < 1e2) : (i += 1) {
+        std.log.warn("y: {d}\tw1: {any}\tw2: {d}", .{ y.buf[0], nn.layers[0].weights.buf, nn.layers[1].weights.buf });
+        y = try nn.feed_forward(x, 11);
+        nn.use_training();
+    }
+}
+
+test "neural network 10-4-2 neuron layer" {
+    var nn = try Network().init(std.testing.allocator, 1, @constCast(&[_]usize{ 10, 4, 2, 1 }));
+    defer nn.deinit(std.testing.allocator);
+    nn.learning_rate = 1e-4;
+
+    // 2x + 1 = y
+    const x = try mat.Matrix(f32, 2).init_alloc(std.testing.allocator, [2]usize{ 1, 1 });
+    defer x.deinit(std.testing.allocator);
+    x.buf[0] = 5;
+
+    var prng = std.rand.DefaultPrng.init(blk: {
+        var seed: u64 = undefined;
+        try std.posix.getrandom(std.mem.asBytes(&seed));
+        break :blk seed;
+    });
+    const rand = prng.random();
+    nn.randomize(rand);
+
+    var i: usize = 0;
+    var y = try nn.feed_forward(x, 11);
+    nn.use_training();
+    while (i < 1e2) : (i += 1) {
+        std.log.warn("y: {d}", .{y.buf[0]});
+        y = try nn.feed_forward(x, 11);
+        nn.use_training();
+    }
+}
+
+test "neural network 10-4-2 neuron layer multiple inputs" {
+    var nn = try Network().init(std.testing.allocator, 3, @constCast(&[_]usize{ 10, 4, 2, 1 }));
+    defer nn.deinit(std.testing.allocator);
+    nn.learning_rate = 1e-4;
+
+    // x = 2
+    // ax^2 + bx+ c = y
+    const x = try mat.Matrix(f32, 2).init_alloc(std.testing.allocator, [2]usize{ 1, 3 });
+    defer x.deinit(std.testing.allocator);
+    x.buf[0] = 3;
+    x.buf[1] = 6;
+    x.buf[2] = 9;
+
+    var prng = std.rand.DefaultPrng.init(blk: {
+        var seed: u64 = undefined;
+        try std.posix.getrandom(std.mem.asBytes(&seed));
+        break :blk seed;
+    });
+    const rand = prng.random();
+    nn.randomize(rand);
+
+    var i: usize = 0;
+    var y = try nn.feed_forward(x, 33);
+    nn.use_training();
+    while (i < 1e2) : (i += 1) {
+        std.log.warn("y: {d}", .{y.buf[0]});
+        y = try nn.feed_forward(x, 33);
         nn.use_training();
     }
 }

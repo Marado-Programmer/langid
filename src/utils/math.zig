@@ -13,9 +13,9 @@
 //
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>
-const exp = @import("std").math.exp;
+const math = @import("std").math;
 pub fn sigmoid(x: f32) f32 {
-    return 1 / (1 + exp(-x));
+    return 1 / (1 + math.exp(-x));
 }
 pub fn sigmoidp(x: f32) f32 {
     return sigmoid(x) * (1 - sigmoid(x));
@@ -26,4 +26,31 @@ pub fn identity(x: f32) f32 {
 }
 pub fn identityp(_: f32) f32 {
     return 1;
+}
+
+pub fn reLU(x: f32) f32 {
+    return @max(x, 0);
+}
+
+pub fn reLUp(x: f32) f32 {
+    return if (x > 0) 1 else 0;
+}
+
+pub fn rosenblatt(x: f32) f32 {
+    return if (x >= 0) 1 else -1;
+}
+
+pub fn rosenblattp(_: f32) f32 {
+    return 0;
+}
+
+// soft max
+// comulative distribution function
+
+pub fn tanh(x: f32) f32 {
+    return math.tanh(x);
+}
+
+pub fn tanhp(x: f32) f32 {
+    return 1 - math.pow(f32, math.tanh(x), 2);
 }

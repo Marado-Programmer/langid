@@ -98,10 +98,10 @@ pub fn main(allocator: std.mem.Allocator, args: [][]const u8) !void {
     const rand = prng.random();
 
     neuron.randomize(rand);
-    neuron.set_f(.none);
+    neuron.activation_function = .none;
 
     layer.randomize(rand);
-    neuron.set_f(.none);
+    layer.set_activation_functions(.none);
 
     nn.randomize(rand);
 
@@ -128,9 +128,9 @@ pub fn main(allocator: std.mem.Allocator, args: [][]const u8) !void {
             try phrase.set([2]usize{ 0, i }, @as(f32, @floatFromInt(map.get(w) orelse 0)));
         }
 
-        try neuron.calc_activation(phrase);
+        _ = neuron.calculate_activation(phrase);
         std.log.debug("{d}\t`{s}`", .{ neuron.get_activation(), line });
-        try layer.calc_activation(phrase);
+        _ = try layer.calculate_activations(phrase);
         std.log.debug("{any}\t`{s}`", .{ layer.activations.buf, line });
         const y = try nn.feed_forward(phrase, 0);
         std.log.debug("{any}\t`{s}`", .{ y.buf, line });
