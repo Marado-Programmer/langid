@@ -120,7 +120,7 @@ sorting=ynt
 \begin{document}
     \maketitle
 
-    \section*{License}
+    \section{License}
     \bigskip
     \begin{quote}
         \licensenotice
@@ -403,8 +403,8 @@ sorting=ynt
 
     \begin{equation}
         \begin{split}
-            y_{k}(\mathbf{x}, \mathbf{w}) & = f_{n} \left( \displaystyle\sum_{i_{n}=0} w_{k i_{n}}^{(n)} \cdots f_{2} \left( \displaystyle\sum_{i_{2}=0} w_{i_{3}i_{2}}^{(2)} f_{1} \left( \displaystyle\sum_{i_{1}=0} w_{i_{2}i_{1}}^{(1)}x_{i_{1}} \right) \right) \cdots \right) = \\
-            & = f_{n} \left( \cdots f_{2} \left( f_{1} \left( \mathbf{x} \cdot w^{(1)} \right)^{T} \cdot w^{(2)} \right)^{T} \cdots \cdot w^{(n)} \right) = \\
+            y_{k}(\mathbf{x}, \mathbf{w}) & = f_{n} \left( \displaystyle\sum_{i_{n}=0} w_{k i_{n}}^{(n)} \hdots f_{2} \left( \displaystyle\sum_{i_{2}=0} w_{i_{3}i_{2}}^{(2)} f_{1} \left( \displaystyle\sum_{i_{1}=0} w_{i_{2}i_{1}}^{(1)}x_{i_{1}} \right) \right) \hdots \right) = \\
+            & = f_{n} \left( \hdots f_{2} \left( f_{1} \left( \mathbf{x} \cdot w^{(1)} \right)^{T} \cdot w^{(2)} \right)^{T} \hdots \cdot w^{(n)} \right) = \\
             & = Y_{n}
         \end{split}
         \label{eq:neural_network}
@@ -418,6 +418,228 @@ sorting=ynt
     \href{run:../src/utils/neural.zig}{\texttt{/src/utils/neural.zig}}.
 
     %%% create x^2 sin(x) |x|
+
+    \section{Learning}
+
+    Now we can feed our network with some data, and it will give us a response
+    (one that we might not want). The network will probably give you some
+    nonsense output and that's probably because the weights in each neuron are
+    also nonsense.
+
+    Our goal now it's to try and find the optimal weights for the network.
+
+    We will evaluate how bad the network is behaving and after that tell it
+    what it should change to do a better job.
+
+    \subsection{Error function}
+
+    First we need a way of measuring how dumb the network is. Error functions
+    measures the difference between the network output and the expected output.
+
+    There are a lot of functions that we can choose to calculate that.
+
+    We will use this $ E \left( \mathbf{w} \right) $ error function
+    \eqref{eq:error_function} that is a sum of the squares of those differences
+    in outputs.
+
+    \begin{equation}
+        E_{n} \left( \mathbf{w} \right) = \left| \mathbf{y}(\mathbf{x}_{n}, \mathbf{w}) - \mathbf{t}_{n} \right|^{2}
+    \end{equation}
+
+    \begin{equation}
+        E \left( \mathbf{w} \right) = \frac{1}{2} \displaystyle\sum_{n=1}^{N} E_{n}(\mathbf{w})
+        \label{eq:error_function}
+    \end{equation}
+
+    We have the input training matrix $ \left\{ \mathbf{x}_{n} \right\} $, $ N $
+    is the input size. Also, we have $ \left\{ \mathbf{t}_{n} \right\} $ with the
+    expected outputs for each input.
+
+    Our goal is to minimize the error function \eqref{eq:error_function}
+    because the closer to 0 that the error function return gets, means the
+    differences between our neural network output and the expected output are
+    less big.
+
+    \subsection{Parameter Optimization}
+
+    The way to minimize a function is by calculating its derivative on a point,
+    so we can get the instantaneous rate of change at that point, that is, how
+    much is the function growing/decreasing on that point. But that only works
+    for unary function. Our neural network is a function with an unlimited
+    (limited by the hardware which is running on) number of parameters (the
+    weights). Because of that we instead use \textbf{partial derivatives}, and
+    we calculate it for each one of the neural network weights (and biases if
+    they are separated from the weights). Actually, we are calculation what's
+    called the \textbf{gradient}, which is a vector of which one of those
+    partial derivatives. That vector's direction is towards where that function
+    grows (greatest rate of increase), we want to go the other way around.
+
+    Our goal is to reach a minimum with $ \nabla E \left( \mathbf{w} \right) =
+    \vec{0} $ and while we don't reach it, we keep changing the weights based
+    on $ -\nabla E \left( \mathbf{w} \right) $. One of the problems that might
+    arise is that $ \nabla E \left( \mathbf{w} \right) = \vec{0} $ does not
+    mean that we found the perfect weight values, because a function can have
+    multiple minimums and with the amount of parameters that a neural network
+    has, it surely does, but also, it does not mean for sure we meet a minimum
+    and instead meet a maximum of saddle point. Also targeting non error can be
+    impossible, so we might instead target a maximum error that we allow the
+    neural network to have.
+
+    It also probably hard as hell to find the perfect weights only using math;
+    I wouldn't get involved in that. At least it would take some time. So
+    normally we just give each weight a random value, and we have the initial
+    weight vector $ \mathbf{w}^{\left( 0 \right)} $. From that, we iteratively
+    update the weights based on a weight vector update $ \Delta
+    \mathbf{w}^{\left( \tau \right)} $ as shown in \eqref{eq:weight_updates}.
+
+    \begin{equation}
+        \mathbf{w}^{\left( \tau + 1 \right)} = \mathbf{w}^{\left( \tau \right)} + \Delta \mathbf{w}^{\left( \tau \right)}
+        \label{eq:weight_updates}
+    \end{equation}
+
+    In our case we are going to do \textbf{gradient descent optimization} so
+    from \eqref{eq:weight_updates} we get
+    \eqref{eq:gradient_descent_optimization}.
+
+    \begin{equation}
+        \begin{split}
+            \mathbf{w}^{\left( \tau + 1 \right)} & = \mathbf{w}^{\left( \tau \right)} + \Delta \mathbf{w}^{\left( \tau \right)} = \\
+            & = \mathbf{w}^{\left( \tau \right)} + \left( \left( \mathbf{w}^{\left( \tau \right)} + \eta \nabla E \left( \mathbf{w}^{\left( \tau \right)} \right) \right) - \mathbf{w}^{\left( \tau \right)} \right) = \\
+            & = \mathbf{w}^{\left( \tau \right)} + \eta \nabla E \left( \mathbf{w}^{\left( \tau \right)} \right)
+        \end{split}
+        \label{eq:gradient_descent_optimization}
+    \end{equation}
+
+    The $ \eta > 0 $ and it's called \textbf{learning rate}, so we can define
+    how fast we want the optimization to be based on the gradient.
+
+    While implementing this, I had some problems.
+
+    Sometimes the $ E \left( \mathbf{w} \right) $ was minimizing and from out of nowhere it
+    would explode into big numbers. But it seems there are some techniques that
+    seem to maybe solve that problem such as \textbf{regularization} which is
+    mentioned in page 30 \cite{bishop}. It can also be because of the way I
+    calculated the derivatives: by using the limit definition. You can define
+    an $ \epsilon $ on your neural network, and it will calculate the
+    derivatives using it like this: $ \lim_{\epsilon\to\infty} \frac{f(x +
+    \epsilon) - f(x)}{\epsilon} $. It would also depend on the input, and the
+    initial weights.
+
+    During implementation, I also thought that this system can cause a lot of
+    problems in multilayer neural networks, because changing the weights of one
+    neuron will affect the behavior of every neuron forward because they depend
+    on its activation, and we are changing every weight at the same time.
+
+    But I guess that's why \textbf{error backpropagation} is preferred over
+    this method.
+
+    \subsection{Error Backpropagation}
+
+    Maybe because of what I mentioned above, error backpropagation exist, where
+    the gradient is calculated from the last layer of the neural network (the
+    output layer) to the first.
+
+    This should work for any feed-forward neural network with any activation
+    functions and error function.
+
+    We have a general error function which is the sum of the errors of each
+    input data.
+
+    \begin{equation}
+        E \left( \mathbf{w} \right) = \displaystyle\sum_{n=1}^{N} E_{n}(\mathbf{w})
+    \end{equation}
+
+    We want to compute $ \nabla E_{n} \left( \mathbf{w} \right) $.
+
+    So we start by feeding forward where we calculate all the activations for
+    every input $ \mathbf{x}_{i} $. In all the equations forward $ \left( \tau
+    \right) $ represents the layer.
+
+    Remember from the equation \eqref{eq:linear_model}. Here we have
+
+    \newcommand{\nlayer}{\left( \tau \right)}
+    \newcommand{\nplayer}[1]{\left( \tau - {#1} \right)}
+    \newcommand{\npblayer}[1]{\left( \tau + {#1} \right)}
+    \begin{equation}
+        a_{k}^{\nlayer} = \displaystyle\sum_{i} \left( w_{ki}^{\nlayer} z_{i}^{\nplayer{1}} \right)
+    \end{equation}
+
+    \begin{equation}
+        z_{i}^{\left( \tau \right)} = f^{\left( \tau \right)} \left( a_{i}^{\left( \tau \right)} \right)
+    \end{equation}
+
+    \newcommand{\pd}[2]{\frac{\partial {#1}}{\partial {#2}}}
+    \newcommand{\ajl}{a_{j^{\nlayer}}^{\nlayer}}
+    \newcommand{\ajpl}[1]{a_{j^{\npblayer{#1}}}^{\npblayer{#1}}}
+    Now as we did before, we want to calculate the gradient, so we need to
+    calculate the partial derivative $ \pd{E_{n}}{w_{ji}^{\nlayer}} $ for every
+    weight.
+
+    We can use the derivatives chain rule to write the partial derivative
+    because the error function needs the activation after the weight to be
+    dependent on that weight.
+
+    \begin{equation}
+        \pd{E_{n}}{w_{ji}^{\nlayer}} & = \pd{E_{n}}{a_{j}^{\nlayer}} \pd{a_{j}^{\nlayer}}{w_{ji}^{\nlayer}}
+    \end{equation}
+
+    And calculate those two separately.
+
+    \begin{equation}
+        \begin{split}
+            \pd{E_{n}}{a_{j}^{\nlayer}} & = \pd{}{a_{j}^{\nlayer}} \left( a_{j}^{\left( \tau \right)} - t_{j} \right)^{2} = \\
+            & = 2 \left( a_{j}^{\left( \tau \right)} - t_{j} \right) \pd{}{a_{j}^{\nlayer}} \left( a_{j}^{\left( \tau \right)} - t_{j} \right) = \\
+            & = 2 \left( a_{j}^{\left( \tau \right)} - t_{j} \right) \left( 1 \right) = \\
+            & = 2 \left( a_{j}^{\left( \tau \right)} - t_{j} \right) = \\
+            & = \delta_{j}
+        \end{split}
+    \end{equation}
+    \begin{equation}
+        \begin{split}
+            \pd{a_{j}^{\nlayer}}{w_{ji}^{\nlayer}} & = \pd{}{w_{ji}^{\nlayer}} \displaystyle\sum_{i} \left( w_{ji}^{\nlayer} z_{i}^{\nplayer{1}} \right) = \\
+            & = \pd{}{w_{ji}^{\nlayer}} \left( w_{ji}^{\nlayer} z_{i}^{\nplayer{1}} + \displaystyle\sum_{k \neq i} \left( w_{jk}^{\nlayer} z_{k}^{\nplayer{1}} \right) \right) = \\
+            & = \left( 1 \right) z_{i}^{\nplayer{1}} + \displaystyle\sum_{k \neq i} 0 = \\
+            & = z_{i}^{\nplayer{1}}
+        \end{split}
+    \end{equation}
+
+    \begin{equation}
+        \pd{E_{n}}{w_{ji}} = \delta_{j}^{\nlayer} z_{i}^{\nplayer{1}}
+    \end{equation}
+
+    We call $ \delta_{j}^{\nlayer} $ the errors. Because we already calculated
+    every $ z_{i}^{\nplayer{1}} $ while forward propagating, we really just
+    need to calculate the errors.
+
+    The $ \delta_{j}^{\nlayer} $ we calculated is for the output layer. For the
+    layer before that, we can also use the chain rule.
+
+    \begin{equation}
+        \begin{split}
+            \delta_{j}^{\nplayer{1}} & = \pd{E_{n}}{a_{j}^{\nplayer{1}}} \\
+            & = \displaystyle\sum_{k} \left( \pd{E_{n}}{a_{k}^{\nlayer}} \pd{a_{k}^{\nlayer}}{a_{j}^{\nplayer{1}}} \right) = \\
+            & = \displaystyle\sum_{k} \left( \delta_{k}^{\nlayer} \pd{}{a_{j}^{\nplayer{1}}} \left( w_{kj}^{\nlayer} f^{\nplayer{1}} \left( a_{j}^{\nplayer{1}} \right) + \displaystyle\sum_{i \neq j} \left( w_{ki}^{\nlayer} z_{ki}^{\nplayer{1}} \right) \right) \right) = \\
+            & = \displaystyle\sum_{k} \left( \delta_{k}^{\nlayer} w_{ki}^{\nlayer} f^{\prime \nplayer{1}} \left( a_{i}^{\nplayer{1}} \right)  \right) = \\
+            & = f^{\prime \nplayer{1}} \left( a_{j}^{\nplayer{1}} \right) \displaystyle\sum_{k} \left( w_{kj}^{\nlayer} \delta_{k}^{\nlayer} \right)
+        \end{split}
+    \end{equation}
+
+    \begin{equation}
+        \begin{split}
+            \pd{E_{n}}{w_{ji}^{\nlayer}} & = \pd{E_{n}}{a_{j}^{\nlayer}} \pd{a_{j}^{\nlayer}}{w_{ji}^{\nlayer}} = \\
+            & = \pd{E_{n}}{\ajpl{l}} \displaystyle\prod_{L = 1}^{l} \left( \pd{\ajpl{l - \left( L - 1 \right)}}{\ajpl{l - L}} \right) \pd{\ajl}{w_{ji}^{\nplayer{l}}}
+        \end{split}
+    \end{equation}
+
+    After calculating all errors from the output layer, you are able to
+    calculate from the other layers, one at a time, backwards, and you'll end
+    up with the derivatives for the gradient.
+
+    We may also accumulate gradients to apply it to the weights all at once.
+
+    \begin{equation}
+        \pd{E}{w_{ji}^{\nlayer}} & = \displaystyle\sum_{n} \pd{E_{n}}{w_{ji}^{\nlayer}}
+    \end{equation}
 
     \medskip
 
