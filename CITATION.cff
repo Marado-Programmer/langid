@@ -1,0 +1,42 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: LANGuage IDentification
+message: To identify languages.
+type: software
+authors:
+  - given-names: João Augusto
+    family-names: Costa Branco Marado Torres
+    email: torres.dev@disroot.org
+repository-code: 'https://github.com/Marado-Programmer/langid'
+url: 'https://github.com/Marado-Programmer/langid'
+abstract: >-
+  This paper goes through the basics of supervised machine learning while
+  simultaneously I implement with code what I'm learning without the use of
+  libraries that hide what's really happening underneath and don't allow us to
+  really understand and learn.
+  I'm writing this paper because of school. But still, this is a topic I would
+  like to really understand.
+  Because now AI in general has become main stream it feels like that what
+  already seemed like a black box for me, it has become even more abstracted
+  away, so the average person can make use of these technologies.
+  During my last internship (January to March 2023) there was a time I had to
+  do some audio recognition stuff that I remember used tensorflow, the ML
+  library for JavaScript, under the hood.
+  Good for me that there was an interface for the things I needed to implement,
+  but if the guy that was giving me tasks had an idea in which those interfaces
+  couldn't help, I would not know what to do.
+  I know what I learned doing this project it's just the surface, but it's this
+  foundation that I need to start learning more complex ideas.
+  The project repository is available at:
+  <https://github.com/Marado-Programmer/langid>
+keywords:
+  - Introduction to Artificial Inteligence
+  - AI
+  - Machine Learning
+  - ML
+license: AGPL-3.0-or-later
+commit: 04e9bb798f70b5ffc1e8acc3d4adf4fd3ef7b721
+version: 0.0.12
+date-released: '2024-12-18'

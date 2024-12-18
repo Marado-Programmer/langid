@@ -8,7 +8,8 @@
 %
 %    You should have received a copy of the GNU Free Documentation License
 %    along with this program.  If not, see <https://www.gnu.org/licenses/>
-
+%
+%    <https://github.com/Marado-Programmer/langid>
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%% Define Article %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \documentclass[a4paper,12pt]{article}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -45,8 +46,11 @@
 \usepackage[
 backend=biber,
 style=alphabetic,
-sorting=ynt
+sorting=ynt,
+defernumbers=true
 ]{biblatex}
+\DeclareBibliographyCategory{cited}
+\AtEveryCitekey{\addtocategory{cited}{\thefield{entrykey}}}
 \addbibresource{references.bib}
 \usepackage{bookmark}
 \usepackage{enumitem}
@@ -117,10 +121,43 @@ sorting=ynt
 \author{João Augusto Costa Branco Marado Torres}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+\nocite{*}
+
 \begin{document}
     \maketitle
 
-    \section{License}
+    \begin{abstract}
+        This paper goes through the basics of supervised machine learning while
+        simultaneously I implement with code what I'm learning without the use
+        of libraries that hide what's really happening underneath and don't
+        allow us to really understand and learn.
+
+        I'm writing this paper because of school. But still, this is a topic I
+        would like to really understand.
+
+        Because now AI in general has become main stream it feels like that
+        what already seemed like a black box for me, it has become even more
+        abstracted away, so the average person can make use of these
+        technologies.
+
+        During my last internship (January to March 2023) there was a time I
+        had to do some audio recognition stuff that I remember used
+        \href{https://www.tensorflow.org/js}{tensorflow, the ML library for
+        JavaScript}, under the hood.
+
+        Good for me that there was an interface for the things I needed to
+        implement, but if the guy that was giving me tasks had an idea in which
+        those interfaces couldn't help, I would not know what to do.
+
+        I know what I learned doing this project it's just the surface, but
+        it's this foundation that I need to start learning more complex ideas.
+
+        The project repository is available at: \\
+        \url{https://github.com/Marado-Programmer/langid}
+    \end{abstract}
+
+    \section*{License}
+
     \bigskip
     \begin{quote}
         \licensenotice
@@ -137,6 +174,23 @@ sorting=ynt
 
     \listoffigures
     %\listoftables
+
+    \section{Introduction}
+
+    The initial goal was to create a model that would be trained on unlabeled
+    phrases in different languages, and after that you would be able to prompt
+    any phrase, and then it would tell which language was it written in.
+
+    Turns out I didn't even get into unsupervised learning on this project. So
+    the data is labeled.
+
+    Still, I learned a lot and this paper will share some of the things I
+    learned.
+
+    Most things I learned/relearned (some things was talked about in class) by
+    reading \cite{bishop} but when it comes to the backpropagation algorithm,
+    if it wasn't for the playlist \cite{3b1b} I probably would still be stuck
+    there.
 
     \section{Phrases to Numeric Representation}
 
@@ -580,7 +634,7 @@ sorting=ynt
     dependent on that weight.
 
     \begin{equation}
-        \pd{E_{n}}{w_{ji}^{\nlayer}} & = \pd{E_{n}}{a_{j}^{\nlayer}} \pd{a_{j}^{\nlayer}}{w_{ji}^{\nlayer}}
+        \pd{E_{n}}{w_{ji}^{\nlayer}} = \pd{E_{n}}{a_{j}^{\nlayer}} \pd{a_{j}^{\nlayer}}{w_{ji}^{\nlayer}}
     \end{equation}
 
     And calculate those two separately.
@@ -638,13 +692,30 @@ sorting=ynt
     We may also accumulate gradients to apply it to the weights all at once.
 
     \begin{equation}
-        \pd{E}{w_{ji}^{\nlayer}} & = \displaystyle\sum_{n} \pd{E_{n}}{w_{ji}^{\nlayer}}
+        \pd{E}{w_{ji}^{\nlayer}} = \displaystyle\sum_{n} \pd{E_{n}}{w_{ji}^{\nlayer}}
     \end{equation}
+
+    \section{Some Observations}
+
+    I think the number of layers and total of neurons should grow when the
+    input size grows too. If the input is two numbers and I want their
+    multiplication as the output, 1 single neuron layer will not be able to do
+    a great job.
+
+    I also observed that the learning rate should decrease with the increase of
+    layers/neurons or else the weights can become big numbers.
 
     \medskip
 
     \printbibliography[
-    heading=bibintoc
+    heading=bibintoc,
+    category=cited
+    ]
+
+    \printbibliography[
+    heading=bibintoc,
+    notcategory=cited,
+    title={Other Resources}
     ]
 
 \end{document}
