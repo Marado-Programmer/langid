@@ -17,13 +17,22 @@ const std = @import("std");
 const NeuralNetwork = @import("../../utils/neural.zig").Network;
 const mat = @import("../../utils/matrix.zig");
 
-pub fn main(allocator: std.mem.Allocator, args: [][]const u8) !void {
-    if (args.len < 3) {
-        @panic("");
-    }
+const Params = struct {
+    example: []const u8 = undefined,
+    input_samples: usize = undefined,
+    layers: ?[]usize = null,
+    learning_rate: f32 = 1e-3,
+    learning_amount: usize = 1e2,
+    randomize: bool = true,
+};
+const ParamsSpecificationError = error{ InvalidParamValue, ParamRepetition };
 
-    const example = args[0];
-    const data_size = try std.fmt.parseInt(usize, args[1], 10);
+pub fn main(allocator: std.mem.Allocator, args: [][]const u8) !void {
+    var params = Params{};
+    defer if (params.layers) |layers| allocator.free(layers);
+
+    params.example = args[0];
+    params.input_samples = try std.fmt.parseInt(usize, args[1], 10);
 
     var prng = std.rand.DefaultPrng.init(blk: {
         var seed: u64 = undefined;
@@ -40,27 +49,41 @@ pub fn main(allocator: std.mem.Allocator, args: [][]const u8) !void {
         }
         allocator.free(training_data);
     };
-    if (std.mem.eql(u8, example, "parabola")) {
-        training_data = (try allocator.alloc([]f32, data_size));
+    if (std.mem.eql(u8, params.example, "parabola")) {
+        training_data = (try allocator.alloc([]f32, params.input_samples));
         for (training_data, 0..) |_, i| {
             training_data[i] = try allocator.alloc(f32, 5);
         }
         allocated = true;
         @import("./parabola.zig").generate_data(&training_data, rand);
-    } else if (std.mem.eql(u8, example, "linear")) {
-        training_data = (try allocator.alloc([]f32, data_size));
+    } else if (std.mem.eql(u8, params.example, "linear")) {
+        training_data = (try allocator.alloc([]f32, params.input_samples));
         for (training_data, 0..) |_, i| {
             training_data[i] = try allocator.alloc(f32, 4);
         }
         allocated = true;
         @import("./linear.zig").generate_data(&training_data, rand);
-    } else if (std.mem.eql(u8, example, "doubles")) {
-        training_data = (try allocator.alloc([]f32, data_size));
+    } else if (std.mem.eql(u8, params.example, "doubles")) {
+        training_data = (try allocator.alloc([]f32, params.input_samples));
         for (training_data, 0..) |_, i| {
             training_data[i] = try allocator.alloc(f32, 2);
         }
         allocated = true;
         @import("./doubles.zig").generate_data(&training_data, rand);
+    } else if (std.mem.eql(u8, params.example, "abs")) {
+        training_data = (try allocator.alloc([]f32, params.input_samples));
+        for (training_data, 0..) |_, i| {
+            training_data[i] = try allocator.alloc(f32, 2);
+        }
+        allocated = true;
+        @import("./abs.zig").generate_data(&training_data, rand);
+    } else if (std.mem.eql(u8, params.example, "sin")) {
+        training_data = (try allocator.alloc([]f32, params.input_samples));
+        for (training_data, 0..) |_, i| {
+            training_data[i] = try allocator.alloc(f32, 2);
+        }
+        allocated = true;
+        @import("./sin.zig").generate_data(&training_data, rand);
     } else {
         @panic("");
     }
@@ -69,74 +92,128 @@ pub fn main(allocator: std.mem.Allocator, args: [][]const u8) !void {
         @panic("");
     }
 
-    var layers_neurons = try allocator.alloc(usize, args.len - 2);
-    defer allocator.free(layers_neurons);
-    for (args[2..], 0..) |value, i| {
-        layers_neurons[i] = try std.fmt.parseInt(usize, value, 10);
-    }
+    var skip = false;
+    for (args[2..], 2..) |arg, i| {
+        if (skip) {
+            skip = false;
+            continue;
+        }
 
-    var nn = try NeuralNetwork().init(allocator, training_data[0].len - 1, layers_neurons);
-    defer nn.deinit(allocator);
-    nn.randomize(rand);
-    nn.learning_rate = 1e-4;
-
-    for (training_data, 0..) |value, a| {
-        const in = try mat.Matrix(f32, 2).init(value, [_]usize{ 1, value.len - 1 });
-
-        const out = try nn.feed_forward(in, value[value.len - 1]);
-
-        if (a < 5) {
-            if (std.mem.eql(u8, example, "parabola")) {
-                std.log.debug("ax^2 + bx + c = y <=> {d}({d})^2 + {d}({d}) + {d} = {d} ({d})", .{ value[0], value[3], value[1], value[3], value[2], out.buf[0], value[4] });
-            } else if (std.mem.eql(u8, example, "linear")) {
-                std.log.debug("ax + b = y <=> {d}({d}) + {d} = {d} ({d})", .{ value[0], value[2], value[1], out.buf[0], value[3] });
-            } else if (std.mem.eql(u8, example, "doubles")) {
-                std.log.debug("2x = y <=> 2({d}) = {d} ({d})", .{ value[0], out.buf[0], value[1] });
-            } else {
-                @panic("");
+        if (std.mem.eql(u8, arg, "--layers")) {
+            if (i + 1 >= args.len) {
+                @panic("No method specified");
             }
+
+            skip = true;
+            const layers = args[i + 1];
+            try specify_layers(allocator, &params, layers);
+        } else if (std.mem.startsWith(u8, arg, "--layers=")) {
+            const a = "--layers=";
+            try specify_layers(allocator, &params, arg[a.len..]);
+        } else if (std.mem.eql(u8, arg, "--learning-rate")) {
+            if (i + 1 >= args.len) {
+                @panic("No method specified");
+            }
+
+            skip = true;
+            const learning_rate = args[i + 1];
+            try specify_learning_rate(&params, learning_rate);
+        } else if (std.mem.startsWith(u8, arg, "--learning-rate=")) {
+            const a = "--learning-rate=";
+            try specify_learning_rate(&params, arg[a.len..]);
+        } else if (std.mem.eql(u8, arg, "--learning-amount")) {
+            if (i + 1 >= args.len) {
+                @panic("No method specified");
+            }
+
+            skip = true;
+            const learning_amount = args[i + 1];
+            try specify_learning_amount(&params, learning_amount);
+        } else if (std.mem.startsWith(u8, arg, "--learning-amount=")) {
+            const a = "--learning-amount=";
+            try specify_learning_amount(&params, arg[a.len..]);
+        } else if (std.mem.eql(u8, arg, "--randomize")) {
+            params.randomize = true;
+        } else if (std.mem.eql(u8, arg, "--no-randomize")) {
+            params.randomize = false;
         }
     }
 
-    var e = nn.err();
-    nn.use_training();
+    var nn = try NeuralNetwork().init(allocator, training_data[0].len - 1, params.layers.?);
+    defer nn.deinit(allocator);
+    if (params.randomize) {
+        nn.randomize(rand);
+    } else {
+        nn.reset();
+    }
+    nn.learning_rate = params.learning_rate;
+    for (nn.layers[0 .. nn.layers.len - 1], 0..) |_, i| {
+        nn.layers[i].set_activation_functions(.lReLU);
+    }
+
+    const stdout_file = std.io.getStdOut().writer();
+    var bw = std.io.bufferedWriter(stdout_file);
+    const stdout = bw.writer();
+
+    const first = training_data[0];
+    const first_in = try mat.Matrix(f32, 2).init(first, [_]usize{ 1, first.len - 1 });
+    const first_out = first[first.len - 1];
 
     var i: usize = 0;
-    while (i < 1e3) : (i += 1) {
+    var last_err: ?f32 = null;
+    const tolerance = 1e-3;
+    var stagnation_count: usize = 0;
+    const max_stagnation_iterations = 5;
+
+    while (i < params.learning_amount) : (i += 1) {
         for (training_data) |value| {
             const in = try mat.Matrix(f32, 2).init(value, [_]usize{ 1, value.len - 1 });
 
-            //const out = try nn.feed_forward(in, value[value.len - 1]);
             _ = try nn.feed_forward(in, value[value.len - 1]);
-
-            // std.log.debug("ax + b = y <=> {d}({d}) + {d} = {d} ({d})", .{ value[0], value[2], value[1], out.buf[0], value[3] });
         }
 
-        //if (e == nn.err()) {
-        //    break;
-        //}
+        const y = try nn.feed_forward(first_in, first_out);
 
-        e = nn.err();
+        const cur_err = nn.err();
+        if (last_err != null and std.math.approxEqAbs(f32, cur_err, last_err.?, tolerance)) {
+            stagnation_count += 1;
+            if (stagnation_count >= max_stagnation_iterations) {
+                break;
+            }
+        } else {
+            stagnation_count = 0;
+        }
+
+        try stdout.print("{d}\t{d}\t{d}\n", .{ i, nn.err(), y.buf[0] });
+        last_err = cur_err;
+
         nn.use_training();
     }
 
-    std.log.debug("####################################################", .{});
+    try bw.flush(); // don't forget to flush!
+}
 
-    for (training_data, 0..) |value, a| {
-        const in = try mat.Matrix(f32, 2).init(value, [_]usize{ 1, value.len - 1 });
-
-        const out = try nn.feed_forward(in, value[value.len - 1]);
-
-        if (a < 5) {
-            if (std.mem.eql(u8, example, "parabola")) {
-                std.log.debug("ax^2 + bx + c = y <=> {d}({d})^2 + {d}({d}) + {d} = {d} ({d})", .{ value[0], value[3], value[1], value[3], value[2], out.buf[0], value[4] });
-            } else if (std.mem.eql(u8, example, "linear")) {
-                std.log.debug("ax + b = y <=> {d}({d}) + {d} = {d} ({d})", .{ value[0], value[2], value[1], out.buf[0], value[3] });
-            } else if (std.mem.eql(u8, example, "doubles")) {
-                std.log.debug("2x = y <=> 2({d}) = {d} ({d})", .{ value[0], out.buf[0], value[1] });
-            } else {
-                @panic("");
-            }
-        }
+fn specify_layers(allocator: std.mem.Allocator, params: *Params, layers: []const u8) !void {
+    if (params.layers) |prev_layers| {
+        allocator.free(prev_layers);
     }
+
+    var itererator = std.mem.splitScalar(u8, layers, '-');
+    var layers_collector = std.ArrayList(usize).init(allocator);
+    defer layers_collector.deinit();
+    var i: usize = 0;
+    while (itererator.next()) |value| {
+        try layers_collector.append(try std.fmt.parseInt(usize, value, 10));
+        i += 1;
+    }
+    params.layers = try allocator.alloc(usize, i);
+    std.mem.copyForwards(usize, params.layers.?, layers_collector.items);
+}
+
+fn specify_learning_rate(params: *Params, rate: []const u8) (std.fmt.ParseFloatError || ParamsSpecificationError)!void {
+    params.learning_rate = try std.fmt.parseFloat(f32, rate);
+}
+
+fn specify_learning_amount(params: *Params, amount: []const u8) (std.fmt.ParseIntError || ParamsSpecificationError)!void {
+    params.learning_amount = try std.fmt.parseUnsigned(usize, amount, 10);
 }

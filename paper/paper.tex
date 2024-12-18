@@ -64,6 +64,7 @@ defernumbers=true
 \usetikzlibrary{positioning,fit,calc}
 \usepackage{float}
 \usepackage{wrapfig}
+\usepackage{gnuplot-lua-tikz}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % Other Settings
@@ -153,7 +154,7 @@ defernumbers=true
         it's this foundation that I need to start learning more complex ideas.
 
         The project repository is available at: \\
-        \url{https://github.com/Marado-Programmer/langid}
+        \url{https://github.com/Marado-Programmer/langid} \cite{repo}
     \end{abstract}
 
     \section*{License}
@@ -271,8 +272,8 @@ defernumbers=true
     represented by $\begin{bsmallmatrix}0&2&0&0&0&0&0\end{bsmallmatrix}^T$ if
     we count the amount of occurrences of the word in the phrase.
 
-    The way I implemented the BoW was by reading a file and collect every
-    single word from it separated by white spaces, dashes, punctuation,
+    The way I implemented the Bag of Words was by reading a file and collect
+    every single word from it separated by white spaces, dashes, punctuation,
     parenthesis or quotation marks and then spit to \texttt{stdout} a formatted
     vocabulary, so you can pipe it later or write it to a file. Words are
     case-sensitive, and it's possible to create the vocabulary in alphabetic
@@ -390,10 +391,11 @@ defernumbers=true
 
     Because I couldn't find a simple way of doing anonymous functions in my
     language of choice, \href{run:../src/utils/neural.zig}{my implementation}
-    does not allow specifying basis functions nor activation functions so every
+    does not allow specifying basis functions so every
     basis function can be thought as being the identify function $
-    \mathbf{\phi}(x) = x $ and the activation function can be toggled between
-    the identify and sigmoid \eqref{eq:sigmoid}.
+    \mathbf{\phi}(x) = x $, but the activation functions can be specified via
+    an enumeration value which gives a set of options like \eqref{eq:sigmoid}
+    for example.
 
     \begin{equation}
         \sigma\left(x\right) = \frac{1}{1+e^{-x}}
@@ -406,20 +408,36 @@ defernumbers=true
     neurons so that their weight values are good.
 
     Because a neuron is really just a function, a neuron can be a basis
-    function of another neuron, starting a network.
+    function of another neuron, starting a network~\ref{fig:neurons_connecting}.
 
-    %%% create visual representation of the above
+    \begin{figure}
+        \begin{center}
+            \begin{tikzpicture}[
+                    neuron/.style={circle, draw=black!90, very thick},
+                    var/.style={}, io/.style={circle, draw=black!90,
+                    fill=black!10, very thick, minimum size=7mm},
+                ]
+                \node[neuron] (neuron_1) {1};
+                \node[neuron] (neuron_2) [right=of neuron_1] {2};
+                \node[var] (input) [left=of neuron_1] {$ \mathbf{x} $};
+                \node[var] (output) [right=of neuron_2] {$ y $};
 
-    A network is composed of layers, each with its own number of neurons.
+                \draw[->] (input.east) -- (neuron_1.west);
+                \draw[->] (neuron_1.east) -- (neuron_2.west);
+                \draw[->] (neuron_2.east) -- (output.west);
+            \end{tikzpicture}
+        \end{center}
+        \caption{Neuron 1 working as a basis function for neuron 2.}\label{fig:neurons_connecting}
+    \end{figure}
 
-    %%% visual representation of a layer
+    A network~\ref{fig:network} is composed of layers, each with its own number of neurons.
 
-    Each of neuron will create a value called \textbf{activation} represented
-    by $ a_{j} $ \eqref{eq:activation} where $ j $ is the neuron number (we can
-    think of a layer as a column matrix of neurons), $ \mathbf{X} $ is the
-    function input or the activations from the layer before after they passed
-    through an activation function and $ D $ is the amount of row in $
-    \mathbf{x} $ $ - 1 $.
+    Each one of the neurons will create a value called \textbf{activation}
+    represented by $ a_{j} $ \eqref{eq:activation} where $ j $ is the neuron
+    number (we can think of a layer as a column matrix of neurons), $
+    \mathbf{X} $ is the function input or the activations from the layer before
+    after they passed through an activation function and $ D $ is the amount of
+    row in $ \mathbf{x} $ $ - 1 $.
 
     Let's define a way to represent a matrix row:
     $$
@@ -449,7 +467,7 @@ defernumbers=true
     matrixes. This is called \textbf{forward propagation}.
 
     \begin{equation}
-        Y_{0} = \textbf{x}
+        Y_{0} = \mathbf{x}
     \end{equation}
     \begin{equation}
         Y_{n} = f_{n} \left( Y_{n - 1}^{T} \cdot w^{(n)} \right), n > 0
@@ -466,12 +484,57 @@ defernumbers=true
 
     %%% full conectivity not mandatory
 
-    %%% visual representation of a neural network
+    \begin{figure}
+        \begin{center}
+            \begin{tikzpicture}[
+                    neuron/.style={circle, draw=black!90, very thick},
+                    var/.style={}, io/.style={circle, draw=black!90,
+                    fill=black!10, very thick, minimum size=7mm},
+                ]
+                \node[neuron] (neuron_1_1) {};
+                \node[neuron] (neuron_1_2) [below=of neuron_1_1] {};
+                \node[neuron] (neuron_1_3) [below=of neuron_1_2] {};
+                \node[neuron] (neuron_1_4) [below=of neuron_1_3] {};
+                \node[neuron] (neuron_1_5) [below=of neuron_1_4] {};
+                \node[neuron] (neuron_2_1) [right=2cm of neuron_1_2] {};
+                \node[neuron] (neuron_2_2) [right=2cm of neuron_1_4] {};
+                \node[var] (input_m) [left=2cm of neuron_1_3] {$ \vdots $};
+                \node[var] (input_i) [above=of input_m] {$ \mathbf{x}_{1} $};
+                \node[var] (input_f) [below=of input_m] {$ \mathbf{x}_{D} $};
+                \node[var] (output) [below right=of neuron_2_1] {$ y $};
+                \node[var] (layer1) [above=of neuron_1_1] {1\textsuperscript{st} layer};
+                \node[var] (layer2) [above=of neuron_2_1] {2\textsuperscript{nd} layer};
 
-    Layers and neural network representation can be found
+                \draw[->] (input_i.east) -- (neuron_1_1.west);
+                \draw[->] (input_i.east) -- (neuron_1_2.west);
+                \draw[->] (input_i.east) -- (neuron_1_3.west);
+                \draw[->] (input_i.east) -- (neuron_1_4.west);
+                \draw[->] (input_i.east) -- (neuron_1_5.west);
+                \draw[->] (input_f.east) -- (neuron_1_1.west);
+                \draw[->] (input_f.east) -- (neuron_1_2.west);
+                \draw[->] (input_f.east) -- (neuron_1_3.west);
+                \draw[->] (input_f.east) -- (neuron_1_4.west);
+                \draw[->] (input_f.east) -- (neuron_1_5.west);
+                \draw[->] (neuron_1_1.east) -- (neuron_2_1.west);
+                \draw[->] (neuron_1_1.east) -- (neuron_2_2.west);
+                \draw[->] (neuron_1_2.east) -- (neuron_2_1.west);
+                \draw[->] (neuron_1_2.east) -- (neuron_2_2.west);
+                \draw[->] (neuron_1_3.east) -- (neuron_2_1.west);
+                \draw[->] (neuron_1_3.east) -- (neuron_2_2.west);
+                \draw[->] (neuron_1_4.east) -- (neuron_2_1.west);
+                \draw[->] (neuron_1_4.east) -- (neuron_2_2.west);
+                \draw[->] (neuron_1_5.east) -- (neuron_2_1.west);
+                \draw[->] (neuron_1_5.east) -- (neuron_2_2.west);
+                \draw[->] (neuron_2_1.east) -- (output.west);
+                \draw[->] (neuron_2_2.east) -- (output.west);
+            \end{tikzpicture}
+        \end{center}
+        \caption{Two layer neural network, first layer has 5 neurons and the
+        second one 2.}\label{fig:network}
+    \end{figure}
+
+    Layers and neural network representation can be found \\
     \href{run:../src/utils/neural.zig}{\texttt{/src/utils/neural.zig}}.
-
-    %%% create x^2 sin(x) |x|
 
     \section{Learning}
 
@@ -558,8 +621,8 @@ defernumbers=true
     \begin{equation}
         \begin{split}
             \mathbf{w}^{\left( \tau + 1 \right)} & = \mathbf{w}^{\left( \tau \right)} + \Delta \mathbf{w}^{\left( \tau \right)} = \\
-            & = \mathbf{w}^{\left( \tau \right)} + \left( \left( \mathbf{w}^{\left( \tau \right)} + \eta \nabla E \left( \mathbf{w}^{\left( \tau \right)} \right) \right) - \mathbf{w}^{\left( \tau \right)} \right) = \\
-            & = \mathbf{w}^{\left( \tau \right)} + \eta \nabla E \left( \mathbf{w}^{\left( \tau \right)} \right)
+            & = \mathbf{w}^{\left( \tau \right)} + \left( \left( \mathbf{w}^{\left( \tau \right)} - \eta \nabla E \left( \mathbf{w}^{\left( \tau \right)} \right) \right) - \mathbf{w}^{\left( \tau \right)} \right) = \\
+            & = \mathbf{w}^{\left( \tau \right)} - \eta \nabla E \left( \mathbf{w}^{\left( \tau \right)} \right)
         \end{split}
         \label{eq:gradient_descent_optimization}
     \end{equation}
@@ -597,19 +660,20 @@ defernumbers=true
     functions and error function.
 
     We have a general error function which is the sum of the errors of each
-    input data.
+    input data \eqref{eq:general_error_function}.
 
     \begin{equation}
         E \left( \mathbf{w} \right) = \displaystyle\sum_{n=1}^{N} E_{n}(\mathbf{w})
+        \label{eq:general_error_function}
     \end{equation}
 
     We want to compute $ \nabla E_{n} \left( \mathbf{w} \right) $.
 
     So we start by feeding forward where we calculate all the activations for
     every input $ \mathbf{x}_{i} $. In all the equations forward $ \left( \tau
-    \right) $ represents the layer.
+    \right) $ represents the layer $ \tau $ being the last layer.
 
-    Remember from the equation \eqref{eq:linear_model}. Here we have
+    Remember from the equation \eqref{eq:neuron}. Here we have
 
     \newcommand{\nlayer}{\left( \tau \right)}
     \newcommand{\nplayer}[1]{\left( \tau - {#1} \right)}
@@ -626,8 +690,8 @@ defernumbers=true
     \newcommand{\ajl}{a_{j^{\nlayer}}^{\nlayer}}
     \newcommand{\ajpl}[1]{a_{j^{\npblayer{#1}}}^{\npblayer{#1}}}
     Now as we did before, we want to calculate the gradient, so we need to
-    calculate the partial derivative $ \pd{E_{n}}{w_{ji}^{\nlayer}} $ for every
-    weight.
+    calculate the partial derivative $ \pd{E_{n}}{w_{ji}^{\nlayer}} $
+    \eqref{eq:weight_partial_derivative} for every weight.
 
     We can use the derivatives chain rule to write the partial derivative
     because the error function needs the activation after the weight to be
@@ -635,6 +699,7 @@ defernumbers=true
 
     \begin{equation}
         \pd{E_{n}}{w_{ji}^{\nlayer}} = \pd{E_{n}}{a_{j}^{\nlayer}} \pd{a_{j}^{\nlayer}}{w_{ji}^{\nlayer}}
+        \label{eq:weight_partial_derivative}
     \end{equation}
 
     And calculate those two separately.
@@ -647,6 +712,7 @@ defernumbers=true
             & = 2 \left( a_{j}^{\left( \tau \right)} - t_{j} \right) = \\
             & = \delta_{j}
         \end{split}
+        \label{eq:errors}
     \end{equation}
     \begin{equation}
         \begin{split}
@@ -659,14 +725,19 @@ defernumbers=true
 
     \begin{equation}
         \pd{E_{n}}{w_{ji}} = \delta_{j}^{\nlayer} z_{i}^{\nplayer{1}}
+        \label{eq:weight_partial_derivative_simplified}
     \end{equation}
 
-    We call $ \delta_{j}^{\nlayer} $ the errors. Because we already calculated
-    every $ z_{i}^{\nplayer{1}} $ while forward propagating, we really just
-    need to calculate the errors.
+    We can rewrite \eqref{eq:weight_partial_derivative} as
+    \eqref{eq:weight_partial_derivative_simplified}.
+
+    We call $ \delta_{j}^{\nlayer} $ \eqref{eq:errors} the errors. Because we
+    already calculated every $ z_{i}^{\nplayer{1}} $ while forward propagating,
+    we really just need to calculate the errors.
 
     The $ \delta_{j}^{\nlayer} $ we calculated is for the output layer. For the
-    layer before that, we can also use the chain rule.
+    layer before that, we can also use the chain rule and calculate the other
+    errors \eqref{eq:other_weight_partial_derivative}.
 
     \begin{equation}
         \begin{split}
@@ -676,6 +747,7 @@ defernumbers=true
             & = \displaystyle\sum_{k} \left( \delta_{k}^{\nlayer} w_{ki}^{\nlayer} f^{\prime \nplayer{1}} \left( a_{i}^{\nplayer{1}} \right)  \right) = \\
             & = f^{\prime \nplayer{1}} \left( a_{j}^{\nplayer{1}} \right) \displaystyle\sum_{k} \left( w_{kj}^{\nlayer} \delta_{k}^{\nlayer} \right)
         \end{split}
+        \label{eq:other_weight_partial_derivative}
     \end{equation}
 
     \begin{equation}
@@ -689,13 +761,58 @@ defernumbers=true
     calculate from the other layers, one at a time, backwards, and you'll end
     up with the derivatives for the gradient.
 
-    We may also accumulate gradients to apply it to the weights all at once.
+    We may also accumulate gradients to apply it to the weights all at once
+    \eqref{eq:batch}.
 
     \begin{equation}
         \pd{E}{w_{ji}^{\nlayer}} = \displaystyle\sum_{n} \pd{E_{n}}{w_{ji}^{\nlayer}}
+        \label{eq:batch}
     \end{equation}
 
     \section{Some Observations}
+
+    % \begin{figure}
+    %     \begin{center}
+    %         %\includegraphics[width=0.95\textwidth]{./res/double.jpeg}
+    %         \input{./res/doubles.tex}
+    %     \end{center}
+    %     \caption{Change of error function on neural network to compute $ y = 2x
+    %     $. The function y is the value the network is returning for one of the
+    %     input training data.}\label{fig:doubles}
+    % \end{figure}
+    \begin{wrapfigure}{O}{0.5\textwidth}
+        \begin{center}
+            \input{./res/abs.tex}
+        \end{center}
+        \caption{Change of error function on neural network to compute $ y =
+        \left| x \right| $. The function y is the value the network is
+        returning for one of the input training data.}\label{fig:abs}
+    \end{wrapfigure}
+    \medskip
+    % \begin{wrapfigure}{L}{0.48\textwidth}
+    %     \begin{center}
+    %         \input{./res/sin.tex}
+    %     \end{center}
+    %     \caption{Change of error function on neural network to compute $ y =
+    %     \sin \left( x \right) $. The function y is the value the network is
+    %     returning for one of the input training data.}\label{fig:sin}
+    % \end{wrapfigure}
+    % \begin{wrapfigure}{R}{0.48\textwidth}
+    %     \begin{center}
+    %         \input{./res/linear.tex}
+    %     \end{center}
+    %     \caption{Change of error function on neural network to compute $ y = ax
+    %     + b $. The function y is the value the network is returning for one of
+    %     the input training data.}\label{fig:linear}
+    % \end{wrapfigure}
+    % \begin{wrapfigure}{L}{0.48\textwidth}
+    %     \begin{center}
+    %         \input{./res/parabola.tex}
+    %     \end{center}
+    %     \caption{Change of error function on neural network to compute $ y =
+    %     ax^{2} + bx + c $. The function y is the value the network is returning
+    %     for one of the input training data.}\label{fig:parabola}
+    % \end{wrapfigure}
 
     I think the number of layers and total of neurons should grow when the
     input size grows too. If the input is two numbers and I want their
@@ -704,6 +821,11 @@ defernumbers=true
 
     I also observed that the learning rate should decrease with the increase of
     layers/neurons or else the weights can become big numbers.
+
+    There are so many think we can tweak. The learning rate, amount of layers
+    and neurons, the training data, activation functions, initial weights and
+    biases, error function. You really just need to stir the pile until the
+    results look okay \cite{xkcd1838}.
 
     \medskip
 

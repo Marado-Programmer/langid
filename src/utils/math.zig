@@ -36,6 +36,14 @@ pub fn reLUp(x: f32) f32 {
     return if (x > 0) 1 else 0;
 }
 
+pub fn lReLU(x: f32, a: f32) f32 {
+    return if (x > 0) x else a * x;
+}
+
+pub fn lReLUp(x: f32, a: f32) f32 {
+    return if (x > 0) 1 else a;
+}
+
 pub fn rosenblatt(x: f32) f32 {
     return if (x >= 0) 1 else -1;
 }

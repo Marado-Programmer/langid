@@ -21,6 +21,7 @@ pub const Activation = enum {
     none,
     sigmoid,
     reLU,
+    lReLU,
     rosenblatt,
     tanh,
     pub fn function(self: Activation, x: f32) f32 {
@@ -28,6 +29,7 @@ pub const Activation = enum {
             .none => math.identity(x),
             .sigmoid => math.sigmoid(x),
             .reLU => math.reLU(x),
+            .lReLU => math.lReLU(x, 1e-2),
             .rosenblatt => math.rosenblatt(x),
             .tanh => math.tanh(x),
         };
@@ -37,6 +39,7 @@ pub const Activation = enum {
             .none => math.identityp(x),
             .sigmoid => math.sigmoidp(x),
             .reLU => math.reLUp(x),
+            .lReLU => math.lReLUp(x, 1e-2),
             .rosenblatt => math.rosenblattp(x),
             .tanh => math.tanhp(x),
         };
@@ -232,7 +235,7 @@ pub fn Network() type {
         gradient: []Layer(),
         y: mat.Matrix(T, 2),
         learning_rate: T = 1,
-        learning_rate_decay: T = 0.99,
+        learning_rate_decay: T = 1,
         learning_method: LearningMethod = .backpropagate,
         batch: bool = true,
         eps: T = 1e-7,
@@ -344,6 +347,12 @@ pub fn Network() type {
         pub fn randomize(self: *Self, rand: std.Random) void {
             for (self.layers, 0..) |_, i| {
                 self.layers[i].randomize(rand);
+            }
+        }
+
+        pub fn reset(self: *Self) void {
+            for (self.layers, 0..) |_, i| {
+                self.layers[i].fill(0);
             }
         }
 
