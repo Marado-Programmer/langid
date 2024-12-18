@@ -165,14 +165,19 @@ pub fn main(allocator: std.mem.Allocator, args: [][]const u8) !void {
     var stagnation_count: usize = 0;
     const max_stagnation_iterations = 5;
 
+    var expected = try mat.Matrix(f32, 2).init_alloc(allocator, [_]usize{ 1, 1 });
+    defer expected.deinit(allocator);
+
     while (i < params.learning_amount) : (i += 1) {
         for (training_data) |value| {
             const in = try mat.Matrix(f32, 2).init(value, [_]usize{ 1, value.len - 1 });
 
-            _ = try nn.feed_forward(in, value[value.len - 1]);
+            expected.buf[0] = value[value.len - 1];
+            _ = try nn.feed_forward(in, expected);
         }
 
-        const y = try nn.feed_forward(first_in, first_out);
+        expected.buf[0] = first_out;
+        const y = try nn.feed_forward(first_in, expected);
 
         const cur_err = nn.err();
         if (last_err != null and std.math.approxEqAbs(f32, cur_err, last_err.?, tolerance)) {

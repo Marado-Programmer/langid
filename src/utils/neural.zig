@@ -252,10 +252,10 @@ pub fn Network() type {
             @memcpy(self.y.buf, in.buf);
         }
 
-        pub fn feed_forward(self: *Self, x: mat.Matrix(T, 2), expected: T) !*const mat.Matrix(T, 2) {
+        pub fn feed_forward(self: *Self, x: mat.Matrix(T, 2), expected: mat.Matrix(T, 2)) !*const mat.Matrix(T, 2) {
             try self.learn(x);
 
-            const e = std.math.pow(T, self.y.buf[0] - expected, 2);
+            const e = std.math.pow(T, mat.vector_magnitude_of_subtraction(T, self.y, expected), 2);
             self.error_accumulator += e;
             self.count += 1;
 
@@ -268,14 +268,14 @@ pub fn Network() type {
                             self.layers[i].weights.buf[j] = w;
 
                             const y = self.layers[self.layers.len - 1].activations;
-                            self.gradient[i].weights.buf[j] += std.math.pow(T, y.buf[0] - expected, 2);
+                            self.gradient[i].weights.buf[j] += std.math.pow(T, mat.vector_magnitude_of_subtraction(T, y, expected), 2);
                         }
                     }
                 },
                 .backpropagate => {
                     var last = self.gradient.len - 1;
                     for (self.layers[last].neurons, 0..) |neuron, i| {
-                        const delta = (neuron.y.buf[0] - expected);
+                        const delta = (neuron.y.buf[0] - expected.buf[i]);
                         self.gradient[last].activations.buf[i] = delta;
 
                         const previous_layer = if (last <= 0) x else self.layers[last - 1].forward;

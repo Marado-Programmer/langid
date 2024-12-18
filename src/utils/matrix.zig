@@ -135,3 +135,45 @@ test "Matrix multiplication" {
         try std.testing.expect(std.math.approxEqAbs(f32, val, result.buf[i], 1e-4));
     }
 }
+
+pub fn matrix_subtraction(comptime T: type, x: Matrix(T, 2), y: Matrix(T, 2), res: *Matrix(T, 2)) !void {
+    const sizes_x = x.sz;
+    const sizes_y = y.sz;
+    const sizes_res = res.sz;
+
+    if (sizes_x[0] != sizes_y[0]) @panic("");
+    if (sizes_x[1] != sizes_y[1]) @panic("");
+    if (sizes_x[0] != sizes_res[0]) @panic("");
+    if (sizes_y[1] != sizes_res[1]) @panic("");
+
+    for (res.buf, 0..) |_, i| {
+        res.buf = x.buf[i] - y.buf[i];
+    }
+}
+
+pub fn vector_magnitude(comptime T: type, x: Matrix(T, 2)) T {
+    const sizes_x = x.sz;
+
+    if (sizes_x[1] > 1) @panic("");
+
+    return @sqrt(blk: {
+        var sum: T = 0;
+        for (x.buf) |value| sum += std.math.pow(value, 2);
+        break :blk sum;
+    });
+}
+
+pub fn vector_magnitude_of_subtraction(comptime T: type, x: Matrix(T, 2), y: Matrix(T, 2)) T {
+    const sizes_x = x.sz;
+    const sizes_y = y.sz;
+
+    if (sizes_x[1] > 1) @panic("");
+    if (sizes_x[0] != sizes_y[0]) @panic("");
+    if (sizes_x[1] != sizes_y[1]) @panic("");
+
+    return @sqrt(blk: {
+        var sum: T = 0;
+        for (x.buf, 0..) |value, i| sum += std.math.pow(T, value - y.buf[i], 2);
+        break :blk sum;
+    });
+}

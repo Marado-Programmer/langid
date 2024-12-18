@@ -132,7 +132,9 @@ pub fn main(allocator: std.mem.Allocator, args: [][]const u8) !void {
         std.log.debug("{d}\t`{s}`", .{ neuron.get_activation(), line });
         _ = try layer.calculate_activations(phrase);
         std.log.debug("{any}\t`{s}`", .{ layer.activations.buf, line });
-        const y = try nn.feed_forward(phrase, 0);
+        const expect = try mat.Matrix(f32, 2).init_alloc(allocator, [_]usize{ 1, 1 });
+        defer expect.deinit(allocator);
+        const y = try nn.feed_forward(phrase, expect);
         std.log.debug("{any}\t`{s}`", .{ y.buf, line });
     }
 }
