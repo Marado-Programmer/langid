@@ -15,6 +15,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>
 const std = @import("std");
 const mat = @import("../../utils/matrix.zig");
+const set = @import("../../utils/set.zig");
 const neural = @import("../../utils/neural.zig");
 const Neuron = neural.Neuron;
 const Layer = neural.Layer;
@@ -68,12 +69,13 @@ pub fn main(allocator: std.mem.Allocator, args: [][]const u8) !void {
         params.input = std.io.getStdIn();
     }
 
-    var vocab = std.ArrayList([]const u8).init(allocator);
-    defer vocab.deinit();
-
     var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();
     const arena_allocator = arena.allocator();
+
+    var vocab = std.ArrayList([]const u8).init(allocator);
+    defer vocab.deinit();
+
     while (try next(arena_allocator, params.vocab.?.reader())) |line| {
         if (line.len == 0) {
             continue;
@@ -81,34 +83,11 @@ pub fn main(allocator: std.mem.Allocator, args: [][]const u8) !void {
         try vocab.append(line);
     }
 
-    var neuron = try Neuron().init_alloc(allocator, vocab.items.len + 1);
-    defer neuron.deinit(allocator);
-
-    var layer = try Layer().init(allocator, 4, vocab.items.len + 1);
-    defer layer.deinit(allocator);
-
-    var nn = try Network().init(allocator, vocab.items.len + 1, @constCast(&[3]usize{ 4, 10, 3 }));
-    defer nn.deinit(allocator);
-
-    var prng = std.rand.DefaultPrng.init(blk: {
-        var seed: u64 = undefined;
-        try std.posix.getrandom(std.mem.asBytes(&seed));
-        break :blk seed;
-    });
-    const rand = prng.random();
-
-    neuron.randomize(rand);
-    neuron.activation_function = .none;
-
-    layer.randomize(rand);
-    layer.set_activation_functions(.none);
-
-    nn.randomize(rand);
-
-    var phrase = try mat.Matrix(f32, 2).init_alloc(allocator, [2]usize{ 1, vocab.items.len + 1 });
-    defer phrase.deinit(allocator);
-
-    try phrase.set([2]usize{ 0, 0 }, 1); // bias
+    const TrainingData = struct { class: []const u8, in: []f32, out: []f32 = undefined, raw: []const u8 };
+    var phrases = std.ArrayList(TrainingData).init(allocator);
+    defer phrases.deinit();
+    var classes = set.Set([]const u8).init(allocator);
+    defer classes.deinit();
 
     var map = std.StringHashMap(u8).init(allocator);
     defer map.deinit();
@@ -119,24 +98,154 @@ pub fn main(allocator: std.mem.Allocator, args: [][]const u8) !void {
         }
         map.clearRetainingCapacity();
 
-        var iterator = std.mem.splitAny(u8, line, " .,:;\"'\\/|_-{[()]}\n\r\t");
+        const separation = std.mem.indexOfAny(u8, line, " \n\r\t") orelse continue;
+        const class = line[0..separation];
+        try classes.put(class);
+        var iterator = std.mem.splitAny(u8, line[separation..], " .,:;\"'\\/|_-{[()]}\n\r\t");
         while (iterator.next()) |word| {
+            if (word.len == 0) {
+                continue;
+            }
             try map.put(word, (map.get(word) orelse 0) + 1);
         }
 
-        for (vocab.items, 1..) |w, i| {
-            try phrase.set([2]usize{ 0, i }, @as(f32, @floatFromInt(map.get(w) orelse 0)));
+        const phrase = try arena_allocator.alloc(f32, vocab.items.len);
+        for (vocab.items, 0..) |w, i| {
+            phrase[i] = @as(f32, @floatFromInt(map.get(w) orelse 0));
         }
 
-        _ = neuron.calculate_activation(phrase);
-        std.log.debug("{d}\t`{s}`", .{ neuron.get_activation(), line });
-        _ = try layer.calculate_activations(phrase);
-        std.log.debug("{any}\t`{s}`", .{ layer.activations.buf, line });
-        const expect = try mat.Matrix(f32, 2).init_alloc(allocator, [_]usize{ 1, 1 });
-        defer expect.deinit(allocator);
-        const y = try nn.feed_forward(phrase, expect);
-        std.log.debug("{any}\t`{s}`", .{ y.buf, line });
+        try phrases.append(TrainingData{
+            .class = class,
+            .in = phrase,
+            .raw = line[separation..],
+        });
     }
+
+    for (phrases.items, 0..) |v, i| {
+        const out = try arena_allocator.alloc(f32, classes.map.count());
+        var iterator = classes.map.iterator();
+        var j: usize = 0;
+        while (iterator.next()) |entry| {
+            out[j] = if (std.mem.eql(u8, v.class, entry.key_ptr.*)) 1 else 0;
+            j += 1;
+        }
+        phrases.items[i].out = out;
+    }
+
+    var prng = std.rand.DefaultPrng.init(blk: {
+        var seed: u64 = undefined;
+        try std.posix.getrandom(std.mem.asBytes(&seed));
+        break :blk seed;
+    });
+    const rand = prng.random();
+
+    var nn = try Network().init(allocator, vocab.items.len + 1, @constCast(&[3]usize{ vocab.items.len * 2, vocab.items.len, classes.count() }));
+    defer nn.deinit(allocator);
+    nn.randomize(rand);
+    nn.learning_rate = 1e-2;
+    for (nn.layers, 0..) |_, i| {
+        nn.layers[i].set_activation_functions(.sigmoid);
+    }
+
+    var in = try mat.Matrix(f32, 2).init_alloc(allocator, [2]usize{ 1, vocab.items.len + 1 });
+    defer in.deinit(allocator);
+    try in.set([2]usize{ 0, 0 }, 1); // bias
+
+    var i: usize = 0;
+    var last_err: ?f32 = null;
+    const tolerance = 1e-3;
+    var stagnation_count: usize = 0;
+    const max_stagnation_iterations = 5;
+    const learning_amount: usize = 1e2;
+
+    while (i < learning_amount) : (i += 1) {
+        for (phrases.items) |phrase| {
+            std.mem.copyForwards(f32, in.buf[1..], phrase.in);
+            const out = try mat.Matrix(f32, 2).init(phrase.out, [2]usize{ phrase.out.len, 1 });
+            std.log.debug("{d} {s}", .{ learning_amount - i, phrase.raw });
+            _ = try nn.feed_forward(in, out);
+        }
+
+        const cur_err = nn.err();
+        if (last_err != null and std.math.approxEqAbs(f32, cur_err, last_err.?, tolerance)) {
+            //stagnation_count += 1;
+            stagnation_count = 0;
+            if (stagnation_count >= max_stagnation_iterations) {
+                break;
+            }
+        } else {
+            stagnation_count = 0;
+        }
+
+        last_err = cur_err;
+
+        nn.use_training();
+        std.log.debug("{d}", .{learning_amount - i});
+    }
+
+    nn.batch = false;
+
+    const stdin_file = std.io.getStdIn().reader();
+    var br = std.io.bufferedReader(stdin_file);
+    const stdin = br.reader();
+    const stdout_file = std.io.getStdOut().writer();
+    var bw = std.io.bufferedWriter(stdout_file);
+    const stdout = bw.writer();
+
+    const out = try mat.Matrix(f32, 2).init_alloc(allocator, [2]usize{ classes.count(), 1 });
+    defer out.deinit(allocator);
+
+    try stdout.print("Available classes:\n", .{});
+    var classes_iterator = classes.iterator();
+    while (classes_iterator.next()) |class| {
+        try stdout.print("\t- {s}\n", .{class.*});
+    }
+    try stdout.print("Write a phrase (CLASS phrase...): ", .{});
+    try bw.flush();
+    while (try stdin.readUntilDelimiterOrEofAlloc(arena_allocator, '\n', 1024)) |line| {
+        if (line.len == 0) {
+            break;
+        }
+
+        const separation = std.mem.indexOfAny(u8, line, " \n\r\t") orelse @panic("");
+        const class = line[0..separation];
+
+        if (classes.map.get(class) == null) {
+            @panic("");
+        }
+
+        var iterator_classes = classes.map.iterator();
+        var j: usize = 0;
+        while (iterator_classes.next()) |entry| {
+            out.buf[j] = if (std.mem.eql(u8, class, entry.key_ptr.*)) 1 else 0;
+            j += 1;
+        }
+
+        map.clearRetainingCapacity();
+
+        var iterator = std.mem.splitAny(u8, line[separation..], " .,:;\"'\\/|_-{[()]}\n\r\t");
+        while (iterator.next()) |word| {
+            if (word.len == 0) {
+                continue;
+            }
+            try map.put(word, (map.get(word) orelse 0) + 1);
+        }
+
+        for (vocab.items, 1..) |w, k| {
+            in.buf[k] = @as(f32, @floatFromInt(map.get(w) orelse 0));
+        }
+
+        const err = nn.err();
+
+        const y = try nn.feed_forward(in, out);
+
+        try stdout.print("y = {any}\n", .{y.buf});
+        try stdout.print("error = {d}\n", .{err});
+        try stdout.print("Write a phrase (CLASS phrase...): ", .{});
+        try bw.flush();
+    }
+
+    try bw.flush();
 }
 
 // https://zig.guide/standard-library/readers-and-writers

@@ -19,32 +19,31 @@ pub fn Set(comptime T: type) type {
     const is_string = comptime isZigString(T);
     return struct {
         const map_type = if (is_string) std.StringHashMap(bool) else std.AutoHashMap(T, bool);
-        var map: map_type = undefined;
+        map: map_type,
         const Self = @This();
 
-        pub fn put(_: Self, x: T) std.mem.Allocator.Error!void {
-            try map.put(x, true);
+        pub fn put(self: *Self, x: T) std.mem.Allocator.Error!void {
+            try self.map.put(x, true);
         }
 
-        pub fn remove(_: Self, x: T) bool {
-            map.remove(x);
+        pub fn remove(self: *Self, x: T) bool {
+            self.map.remove(x);
         }
 
-        pub fn count(_: Self) u32 {
-            return map.count();
+        pub fn count(self: Self) u32 {
+            return self.map.count();
         }
 
-        pub fn iterator(_: Self) std.StringHashMap(bool).KeyIterator {
-            return map.keyIterator();
+        pub fn iterator(self: Self) std.StringHashMap(bool).KeyIterator {
+            return self.map.keyIterator();
         }
 
         pub fn init(allocator: std.mem.Allocator) Self {
-            map = map_type.init(allocator);
-            return Self{};
+            return Self{ .map = map_type.init(allocator) };
         }
 
-        pub fn deinit(_: Self) void {
-            map.deinit();
+        pub fn deinit(self: *Self) void {
+            self.map.deinit();
         }
     };
 }

@@ -136,7 +136,10 @@ pub fn Layer() type {
         const Self = @This();
 
         pub fn calculate_activations(self: *Self, x: mat.Matrix(T, 2)) !*const mat.Matrix(T, 2) {
-            try mat.matrix_multiplication(T, x, self.weights, &self.activations);
+            //try mat.matrix_multiplication(T, x, self.weights, &self.activations);
+            for (self.neurons, 0..) |_, i| {
+                self.activations.buf[i] = self.neurons[i].calculate_activation(x);
+            }
             return &self.activations;
         }
 

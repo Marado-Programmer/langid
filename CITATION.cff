@@ -38,5 +38,5 @@ keywords:
   - ML
 license: AGPL-3.0-or-later
 commit: 04e9bb798f70b5ffc1e8acc3d4adf4fd3ef7b721
-version: 0.0.12
+version: 0.1.0
 date-released: '2024-12-18'

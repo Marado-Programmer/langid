@@ -54,6 +54,8 @@ pub fn main(allocator: std.mem.Allocator, args: [][]const u8) !void {
             try specify_input(&params, arg[a.len..]);
         } else if (std.mem.eql(u8, arg, "--sort")) {
             params.sort = true;
+        } else if (std.mem.eql(u8, arg, "--no-sort")) {
+            params.sort = false;
         }
     }
 
