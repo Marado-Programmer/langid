@@ -11,6 +11,7 @@ authors:
     email: torres.dev@disroot.org
 repository-code: 'https://github.com/Marado-Programmer/langid'
 url: 'https://github.com/Marado-Programmer/langid'
+doi: '10.5281/zenodo.17502601'
 abstract: >-
   This paper goes through the basics of supervised machine learning while
   simultaneously I implement with code what I'm learning without the use of
